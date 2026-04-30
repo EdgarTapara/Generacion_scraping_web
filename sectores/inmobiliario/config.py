@@ -10,11 +10,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- API Gemini ---
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
-GEMINI_API_KEY_2 = os.getenv("GEMINI_API_KEY_2", "")
-GEMINI_MODEL_2 = os.getenv("GEMINI_MODEL_2", "gemini-2.5-flash")
+# --- API DeepSeek ---
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+DEEPSEEK_MODEL_2 = os.getenv("DEEPSEEK_MODEL_2", "deepseek-v4-pro")
 
 # --- Ejecutor (se persiste como metadato en cada anuncio) ---
 BCRP_EJECUTOR = os.getenv("BCRP_EJECUTOR", "desconocido")

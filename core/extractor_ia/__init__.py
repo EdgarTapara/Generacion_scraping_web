@@ -1,6 +1,6 @@
-"""Extractores IA con interfaz común. Implementación por defecto: Gemini dual-API."""
+"""Extractores IA con interfaz comun. Implementacion por defecto: DeepSeek."""
 
 from core.extractor_ia.base import ExtractorIA
-from core.extractor_ia.gemini import GeminiExtractor
+from core.extractor_ia.deepseek import DeepSeekExtractor
 
-__all__ = ["ExtractorIA", "GeminiExtractor"]
+__all__ = ["ExtractorIA", "DeepSeekExtractor"]

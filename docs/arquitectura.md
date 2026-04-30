@@ -14,7 +14,7 @@ Ver [`../../PLAN_PROYECTO_SCRAPING_BCRP.md`](../../PLAN_PROYECTO_SCRAPING_BCRP.m
 | `core/logging/` | `configurar_logging(carpeta_logs)` | El caller decide la carpeta de logs por sector |
 | `core/modelos/` | `AnuncioBase`, `EstadoAnuncio` | Campos comunes a cualquier anuncio web; `use_enum_values=True` |
 | `core/limpieza/` | `parsear_numero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa` | Helpers puros; fechas aceptan `referencia: datetime` para tests deterministas |
-| `core/extractor_ia/` | `ExtractorIA` (ABC) + `GeminiExtractor` | Dual-API con fallback automático ante errores retryables |
+| `core/extractor_ia/` | `ExtractorIA` (ABC) + `DeepSeekExtractor` | Cliente OpenAI-compatible con fallback de modelos ante errores retryables |
 | `core/historial/` | `HistorialSQLite` | Schema dinámico: el sector declara `campos_snapshot` y `campo_operacion` |
 | `core/reportes/` | `ExcelAcumulativo` + `Hoja` | N hojas con claves de dedup independientes, merge sobre disco |
 
@@ -41,7 +41,7 @@ Implementado por `core/historial/HistorialSQLite.registrar_corrida`:
 CLI → BrowserManager → scraper.scrape_portal
   → portales/{navent|properati|remax}.scrape_listados
   → pipeline_limpieza (core.limpieza + utils_sector)
-  → extractor_ia.procesar_con_ia (core.GeminiExtractor + prompt sector)
+  → extractor_ia.procesar_con_ia (core.DeepSeekExtractor + prompt sector + cache SQLite)
   → historial.registrar_corrida (HistorialSQLite)
   → construir_export_alberth (hoja Consolidado)
   → ExcelAcumulativo.escribir (append + dedup sobre Consolidado + Diagnostico)

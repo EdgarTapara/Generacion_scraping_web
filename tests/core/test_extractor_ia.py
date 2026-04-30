@@ -1,10 +1,10 @@
-"""Tests del contrato `ExtractorIA` y del extractor Gemini (sin red)."""
+"""Tests del contrato `ExtractorIA` y del extractor DeepSeek (sin red)."""
 
 import sys
 import types
 from unittest.mock import patch
 
-from core.extractor_ia import ExtractorIA, GeminiExtractor
+from core.extractor_ia import DeepSeekExtractor, ExtractorIA
 
 
 class ExtractorFalso(ExtractorIA):
@@ -55,82 +55,91 @@ def test_enriquecer_batch_omite_si_no_disponible():
     assert ext.llamadas == 0
 
 
-def test_gemini_extractor_sin_keys_no_disponible():
-    ext = GeminiExtractor(
-        api_key_primaria="", modelo_primario="",
-        api_key_secundaria=None, modelo_secundario=None,
-    )
+def test_deepseek_extractor_sin_key_no_disponible():
+    ext = DeepSeekExtractor(api_key="", modelo_primario="", modelo_secundario=None)
     assert ext.disponible() is False
     assert ext.generar("hola") is None
 
 
-def test_gemini_extractor_usa_google_genai(monkeypatch):
-    """El extractor debe usar el SDK vigente `google.genai`, no el deprecado."""
+def test_deepseek_extractor_usa_openai_compatible(monkeypatch):
     created_clients = []
 
-    class FakeModels:
-        def generate_content(self, *, model, contents, config):
-            assert model == "m1"
-            assert contents == "prompt"
-            assert config["temperature"] == 0.0
-            assert config["response_mime_type"] == "application/json"
+    class FakeCompletions:
+        def create(self, *, model, messages, response_format, temperature):
+            assert model == "deepseek-v4-flash"
+            assert messages[-1]["content"] == "prompt"
+            assert response_format == {"type": "json_object"}
+            assert temperature == 0.0
 
-            class R:
-                text = '[{"id": 0}]'
-            return R()
+            class Msg:
+                content = '{"items": [{"id": 0}]}'
 
-    class FakeClient:
-        def __init__(self, api_key):
-            created_clients.append(api_key)
-            self.models = FakeModels()
+            class Choice:
+                message = Msg()
 
-    fake_google = types.ModuleType("google")
-    fake_genai = types.SimpleNamespace(Client=FakeClient)
-    monkeypatch.setitem(sys.modules, "google", fake_google)
-    monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+            class Response:
+                choices = [Choice()]
 
-    ext = GeminiExtractor(
-        api_key_primaria="k1", modelo_primario="m1",
-        api_key_secundaria=None, modelo_secundario=None,
-    )
+            return Response()
+
+    class FakeOpenAI:
+        def __init__(self, *, api_key, base_url, timeout):
+            created_clients.append((api_key, base_url, timeout))
+            self.chat = types.SimpleNamespace(
+                completions=FakeCompletions()
+            )
+
+    fake_openai = types.SimpleNamespace(OpenAI=FakeOpenAI)
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+
+    ext = DeepSeekExtractor(api_key="k1", modelo_primario="deepseek-v4-flash")
 
     assert ext.disponible() is True
-    assert ext.generar("prompt") == '[{"id": 0}]'
-    assert created_clients == ["k1"]
+    assert ext.generar("prompt") == '{"items": [{"id": 0}]}'
+    assert created_clients == [("k1", "https://api.deepseek.com", 60.0)]
 
 
-def test_gemini_extractor_fallback_a_segunda_api(monkeypatch):
-    """Primera API tira error retryable; segunda responde OK."""
-    calls = {"n": 0}
+def test_deepseek_extractor_fallback_a_modelo_secundario(monkeypatch):
+    calls = []
 
-    class FakeModels:
-        def __init__(self, api_key):
-            self.api_key = api_key
-
-        def generate_content(self, *, model, contents, config):
-            calls["n"] += 1
-            if self.api_key == "k1":
+    class FakeCompletions:
+        def create(self, *, model, messages, response_format, temperature):
+            calls.append(model)
+            if model == "deepseek-v4-flash":
                 raise Exception("429 rate limit exceeded")
 
-            class R:
-                text = '[{"id": 0}]'
-            return R()
+            class Msg:
+                content = '{"items": [{"id": 0}]}'
 
-    class FakeClient:
-        def __init__(self, api_key):
-            self.models = FakeModels(api_key)
+            class Choice:
+                message = Msg()
 
-    fake_google = types.ModuleType("google")
-    fake_genai = types.SimpleNamespace(Client=FakeClient)
-    monkeypatch.setitem(sys.modules, "google", fake_google)
-    monkeypatch.setitem(sys.modules, "google.genai", fake_genai)
+            class Response:
+                choices = [Choice()]
 
-    # Parchar time.sleep para no esperar los reintentos.
-    with patch("core.extractor_ia.gemini.time.sleep"):
-        ext = GeminiExtractor(
-            api_key_primaria="k1", modelo_primario="m1",
-            api_key_secundaria="k2", modelo_secundario="m2",
+            return Response()
+
+    class FakeOpenAI:
+        def __init__(self, *, api_key, base_url, timeout):
+            self.chat = types.SimpleNamespace(
+                completions=FakeCompletions()
+            )
+
+    fake_openai = types.SimpleNamespace(OpenAI=FakeOpenAI)
+    monkeypatch.setitem(sys.modules, "openai", fake_openai)
+
+    with patch("core.extractor_ia.deepseek.time.sleep"):
+        ext = DeepSeekExtractor(
+            api_key="k1",
+            modelo_primario="deepseek-v4-flash",
+            modelo_secundario="deepseek-v4-pro",
         )
         resultado = ext.generar("prompt")
-        assert resultado == '[{"id": 0}]'
-        assert calls["n"] == 4
+
+    assert resultado == '{"items": [{"id": 0}]}'
+    assert calls == [
+        "deepseek-v4-flash",
+        "deepseek-v4-flash",
+        "deepseek-v4-flash",
+        "deepseek-v4-pro",
+    ]

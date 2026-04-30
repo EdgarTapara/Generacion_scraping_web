@@ -10,7 +10,7 @@ Framework modular emergido del refactor del scraper inmobiliario `v1/` validado 
 bcrp-scraping/
 ├── core/                   # Núcleo reutilizable extraído de v1/
 │   ├── browser/            BrowserManager (undetected-chromedriver)
-│   ├── extractor_ia/       Dual-API Gemini con fallback automático
+│   ├── extractor_ia/       DeepSeek OpenAI-compatible con fallback de modelos
 │   ├── historial/          SQLite genérico multi-sector
 │   ├── limpieza/           Helpers genéricos: números, fechas, moneda
 │   ├── modelos/            AnuncioBase Pydantic
@@ -32,9 +32,9 @@ bcrp-scraping/
 ## Estado actual
 
 - **Sprint 0**: completado (auditoría y diseño → `PLAN_PROYECTO_SCRAPING_BCRP.md`)
-- **Sprint 1**: **completado** (A–F) — 78 tests pasando
+- **Sprint 1**: **completado** (A-F) — 94 tests pasando
   - Fase A/B/C: scaffold + `core/browser/` + `core/logging/` + `core/modelos/` + `core/limpieza/`
-  - Fase D: `core/extractor_ia/` (Gemini dual-API) + `core/historial/` (SQLite genérico)
+  - Fase D: `core/extractor_ia/` (DeepSeek + fallback) + `core/historial/` (SQLite generico)
   - Fase E: `core/reportes/` (Excel acumulativo) + migración `sectores/inmobiliario/` a depender de `core/`
   - Fase F: tests de regresión (fixture Redux + parsers puros + roundtrip SQLite/Excel)
 
@@ -58,7 +58,7 @@ python -m pytest tests/ -v
 
 - Python ≥ 3.11
 - Chrome instalado (para `undetected-chromedriver`)
-- `.env` con `GEMINI_API_KEY` (opcional — pipeline corre sin IA con cobertura reducida)
+- `.env` con `DEEPSEEK_API_KEY` (opcional; pipeline corre sin IA con cobertura reducida)
 
 ## Setup
 

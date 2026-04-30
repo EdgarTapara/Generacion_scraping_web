@@ -1,8 +1,8 @@
-# Runbook de operación
+# Runbook de operacion
 
-> Guía de qué hacer cuando algo se rompe en producción. Se va llenando con cada incidente.
+> Guia de que hacer cuando algo se rompe en produccion.
 
-## Corrida normal (cuando Fase E esté lista)
+## Corrida normal
 
 ```bash
 python -m sectores.inmobiliario.main --portal urbania --operacion alquiler --paginas 25
@@ -11,18 +11,18 @@ python -m sectores.inmobiliario.main --portal urbania --operacion alquiler --pag
 ## Troubleshooting
 
 ### "Chrome no inicia"
-1. Verificar que Chrome está actualizado
-2. Intentar con `version_main` fijo en `BrowserManager` si falla la autodetección
+1. Verificar que Chrome esta actualizado.
+2. Intentar con `version_main` fijo en `BrowserManager` si falla la autodeteccion.
 
-### "Gemini devuelve 429 / rate limit"
-- El fallback automático debería cambiar a `GEMINI_API_KEY_2`
-- Si ambas agotan cuota: el pipeline continúa sin IA, los campos quedan vacíos
+### "DeepSeek devuelve 429 / rate limit"
+- El fallback automatico deberia cambiar de `DEEPSEEK_MODEL` a `DEEPSEEK_MODEL_2`.
+- Si ambos modelos fallan: el pipeline continua con cache/regex y los campos no resueltos quedan vacios.
 
-### "El Excel maestro se corrompió"
-- La fuente de verdad es el SQLite (`historial_<sector>.db`)
-- Regenerar el Excel con un script helper (pendiente de crear en Fase E)
+### "El Excel maestro se corrompio"
+- La fuente de verdad es el SQLite (`historial_<sector>.db`).
+- Regenerar el Excel desde SQLite cuando exista el helper de reconstruccion.
 
-### "Un portal cambió su HTML y el scraper deja de extraer"
-- Revisar si los selectores `data-qa` / `data-test` siguen vigentes
-- Grabar fixture nuevo con `scripts/grabar_fixture.py` (pendiente)
-- Ajustar selectores en `sectores/<sector>/portales/<portal>.py`
+### "Un portal cambio su HTML y el scraper deja de extraer"
+- Revisar si los selectores `data-qa` / `data-test` siguen vigentes.
+- Grabar fixture nuevo con `scripts/grabar_fixture.py` cuando exista.
+- Ajustar selectores en `sectores/<sector>/portales/<portal>.py`.

@@ -28,7 +28,7 @@
 ## Testing
 
 - Sin llamadas a red en tests. Fixtures HTML grabados en `tests/fixtures/`
-- Mocks para Gemini API y Selenium driver
+- Mocks para DeepSeek/OpenAI-compatible API y Selenium driver
 - Cobertura objetivo: ≥ 70% en `core/`
 
 ## Secretos

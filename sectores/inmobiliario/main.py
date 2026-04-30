@@ -170,8 +170,8 @@ def ejecutar_scraping(
 
     # Fase 5: IA
     if usar_ia and ia_disponible():
-        logger.info("FASE 5: Enriquecimiento con Gemini API...")
-        df = procesar_con_ia(df)
+        logger.info("FASE 5: Enriquecimiento con DeepSeek API...")
+        df = procesar_con_ia(df, ruta_cache=RUTA_DB)
     elif usar_ia:
         logger.info("FASE 5: IA no disponible. Continuando sin IA.")
 
@@ -246,7 +246,7 @@ def main(argv: list[str] | None = None):
     logger.info(f"Portales: {', '.join(portales)}")
     logger.info(f"Operaciones: {', '.join(operaciones)}")
     logger.info(f"Paginas por portal/operacion: {args.paginas}")
-    logger.info(f"IA (Gemini): {'SI' if usar_ia else 'NO'}")
+    logger.info(f"IA (DeepSeek): {'SI' if usar_ia else 'NO'}")
     logger.info(f"Headless: {'SI' if args.headless else 'NO'}")
     logger.info("=" * 60)
 
