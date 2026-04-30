@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+.venv/
+venv/
+.codex-pydeps/
+
+# Secrets
+.env
+
+# Salidas de corridas
+**/resultados/
+**/*.db
+**/*.db-journal
+**/*.xlsx
+!tests/fixtures/**/*.xlsx
+
+# Logs
+**/logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store

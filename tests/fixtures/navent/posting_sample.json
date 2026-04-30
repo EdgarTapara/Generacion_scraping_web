@@ -1,0 +1,40 @@
+{
+  "postingId": "56789",
+  "title": "Departamento en Cayma cerca al Real Plaza",
+  "descriptionNormalized": "Departamento amoblado a 2 cuadras del Real Plaza. Cuenta con 3 dormitorios, 2 baños, sala comedor, cocina equipada. Av. Ejercito 120, Cayma.",
+  "priceOperationTypes": [
+    {
+      "operationType": {"name": "Alquiler"},
+      "prices": [
+        {"amount": 2500, "currency": "S/"},
+        {"amount": 650, "currency": "USD"}
+      ]
+    }
+  ],
+  "mainFeatures": {
+    "CFT100": {"label": "Superficie total", "value": "120"},
+    "CFT101": {"label": "Superficie construida", "value": "100"},
+    "CFT2": {"label": "Dormitorios", "value": "3"},
+    "CFT3": {"label": "Baños", "value": "2"},
+    "CFT7": {"label": "Estacionamientos", "value": "1"},
+    "CFT5": {"label": "Antiguedad", "value": "5"}
+  },
+  "realEstateType": {"name": "Departamento"},
+  "publisher": {"name": "Inmobiliaria Test SAC"},
+  "postingLocation": {
+    "address": {"name": "Av. Ejercito 120", "visibility": "EXACT"},
+    "location": {
+      "name": "Los Angeles De Cayma",
+      "label": "ZONE",
+      "parent": {
+        "name": "Cayma",
+        "label": "SUBAREA1",
+        "parent": {
+          "name": "Arequipa",
+          "label": "CITY"
+        }
+      }
+    }
+  },
+  "expenses": {"amount": 120}
+}
