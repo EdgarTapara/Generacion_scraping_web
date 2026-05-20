@@ -1,0 +1,21 @@
+"""Compuerta de calidad: decide si una corrida es apta para actualizar historial.
+
+La metodología nace en v1: una corrida defectuosa NO debe contaminar el
+historial longitudinal ni quemar tokens de IA. Si la cobertura de campos
+clave cae bajo umbral, la corrida se "degrada" y se exporta aparte para
+revisión humana.
+"""
+
+from core.calidad.evaluador import (
+    EstadoCalidad,
+    Veredicto,
+    evaluar_cobertura,
+    cobertura_por_campo,
+)
+
+__all__ = [
+    "EstadoCalidad",
+    "Veredicto",
+    "evaluar_cobertura",
+    "cobertura_por_campo",
+]
