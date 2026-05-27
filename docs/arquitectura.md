@@ -45,7 +45,9 @@ solo sentido.
 | `core.modelos` | Schema base de cualquier anuncio web | `AnuncioBase`, `EstadoAnuncio` |
 | `core.extractor_ia` | Cliente DeepSeek + interfaz extensible + cache SQLite | `ExtractorIA`, `DeepSeekExtractor`, `CachePublicaciones` |
 | `core.historial` | SQLite acumulativo con ciclo de vida (nuevo→repetido→desaparecido→baja) | `HistorialSQLite` |
-| `core.calidad` | Compuerta pre-IA con umbrales + señales | `evaluar_cobertura`, `Veredicto`, `EstadoCalidad` |
+| `core.calidad` | Compuerta pre-IA con umbrales + señales + diagnóstico estándar | `evaluar_cobertura`, `Veredicto`, `EstadoCalidad`, `nuevo_diagnostico_scraping` |
+| `core.snapshots` | Captura de HTML renderizado por etapa para auditoría | `guardar_snapshot_html` |
+| `core.mantenimiento_frontend` | Generador de reporte Markdown para handoff con IA auditora | `generar_reporte_mantenimiento_frontend` |
 | `core.tipo_cambio` | BCRP DataAPI + cache + conversión auditable | `descargar_tipo_cambio_bcrp`, `aplicar_conversion_tipo_cambio`, `marcar_columnas_estimadas_excel` |
 | `core.nse` | Clasificación por urbanización (lookup, sin ML) | `NSEClassifier`, `NSEConfig`, `asignar_nse_dataframe` |
 | `core.reportes` | Excel acumulativo multi-hoja + formato visual | `ExcelAcumulativo`, `Hoja`, `aplicar_formato_hojas` |

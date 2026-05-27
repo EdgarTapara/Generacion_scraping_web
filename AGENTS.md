@@ -35,7 +35,9 @@ para la API exacta):
 | `core.modelos` | `AnuncioBase` Pydantic + `EstadoAnuncio`. Cada sector hereda |
 | `core.extractor_ia` | `DeepSeekExtractor` (cliente OpenAI-compatible con fallback Flash→Pro) + `CachePublicaciones` (SQLite por `publicacion_id + descripcion_hash + campo`) |
 | `core.historial` | `HistorialSQLite` multi-sector con ciclo de vida (nuevo/repetido/desaparecido/dado de baja) y bitácora de corridas |
-| `core.calidad` | `evaluar_cobertura(df, umbrales, señales)` → `Veredicto` con estado OK/advertencia/degradado. Compuerta pre-IA |
+| `core.calidad` | `evaluar_cobertura(df, umbrales, señales)` → `Veredicto` con estado OK/advertencia/degradado. Compuerta pre-IA. `nuevo_diagnostico_scraping(portal, op, estrategia)` con shape estándar para todos los sectores |
+| `core.snapshots` | `guardar_snapshot_html(driver, portal, op, pagina, etapa, carpeta, diagnostico)` — captura HTML renderizado y registra en `diagnostico["snapshots_html"]` |
+| `core.mantenimiento_frontend` | `generar_reporte_mantenimiento_frontend(...)` — Markdown auditable con cobertura, JSON diagnóstico, snapshots, mapa portal→funciones probables. Para corridas degradadas / sin_datos / excepción |
 | `core.tipo_cambio` | BCRP DataAPI + cache SQLite + `aplicar_conversion_tipo_cambio` con columnas estimadas auditables |
 | `core.nse` | Clasificador NSE por urbanización con fallback. Genérico: acepta cualquier tabla de referencia |
 | `core.reportes` | `ExcelAcumulativo` (append + dedup multi-hoja) + `aplicar_formato_hojas` (header BCRP, freeze) |
@@ -65,6 +67,15 @@ para la API exacta):
   debe tener fallback en cascada (Redux → DOM → regex → None).
 - **Nunca pasar datos degradados al historial SQLite.** La compuerta
   de `core.calidad` los desvía a `resultados/degradadas/`.
+- **`scraper.py` del sector es fachada delgada.** Sólo rutea al
+  módulo correspondiente en `portal_scrapers/<portal>.py`. Cualquier
+  lógica de parseo va en el módulo del portal, NO en la fachada. Los
+  tests parchean el módulo real, no la fachada.
+- **Toda corrida fallida deja evidencia.** Si una corrida queda
+  degradada, sin_datos o lanza excepción, el sector DEBE llamar a
+  `generar_reporte_mantenimiento_frontend(...)` y los `portal_scrapers`
+  DEBEN haber llamado `guardar_snapshot_html(...)` en cada página.
+  Sin evidencia, una IA auditora no puede reparar el portal.
 
 ## Cómo construir un sector nuevo
 
@@ -161,6 +172,39 @@ entrenar produciría sesgo sistemático).
   directamente y skipear el browser.
 - Cuando el portal **provee API oficial** (ej. BCRPData) — consumirla
   directo. El módulo `core.tipo_cambio.bcrp` hace exactamente eso.
+
+## Mantenimiento dinámico ante cambios de frontend
+
+El framework no auto-repara cuando un portal cambia su HTML. Lo que
+sí hace es producir, en cada corrida fallida, un **paquete auditable**
+que cualquier agente IA (Claude, Codex, Antigravity) puede consumir
+sin reproducir la condición:
+
+* `resultados/snapshots_frontend/` — HTML renderizado de cada página
+  visitada, con timestamp + portal + operación + página + etapa en
+  el nombre. Se captura en cada llamada a `guardar_snapshot_html` que
+  hagan los `portal_scrapers`.
+* `resultados/reportes_mantenimiento_frontend/` — un Markdown por
+  corrida fallida con: motivos, cobertura, diagnóstico JSON, lista
+  de snapshots, mapa portal→funciones probables, e instrucciones
+  específicas para la IA auditora.
+* `resultados/degradadas/` — Excel separado con la corrida que NO
+  entró al historial.
+
+### Protocolo para una IA auditora que recibe un reporte
+
+1. Leer el reporte Markdown completo (`reportes_mantenimiento_frontend/`).
+2. Leer los archivos del sector listados en "Instrucciones para la IA
+   auditora" del reporte.
+3. Abrir los snapshots HTML referenciados — comparar con fixtures
+   antiguos si existen.
+4. Identificar causa real: cambio de frontend / Redux / anti-bot /
+   parser local / regresión en limpieza.
+5. **Reparar SÓLO la superficie afectada** — el módulo del portal en
+   `portal_scrapers/<portal>.py`. No mover módulos transversales.
+6. Agregar fixture local + test que cubra el caso reparado.
+7. Correr tests del sector. Si pasan, corrida acotada de validación.
+8. Verificar que el historial SQLite NO recibió datos contaminados.
 
 ## Documentación viva
 

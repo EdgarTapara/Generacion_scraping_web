@@ -6,6 +6,7 @@ clave cae bajo umbral, la corrida se "degrada" y se exporta aparte para
 revisión humana.
 """
 
+from core.calidad.diagnostico import nuevo_diagnostico_scraping
 from core.calidad.evaluador import (
     EstadoCalidad,
     Veredicto,
@@ -18,4 +19,5 @@ __all__ = [
     "Veredicto",
     "evaluar_cobertura",
     "cobertura_por_campo",
+    "nuevo_diagnostico_scraping",
 ]

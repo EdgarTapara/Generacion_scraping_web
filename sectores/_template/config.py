@@ -127,9 +127,28 @@ CARPETA_SECTOR = Path(__file__).resolve().parent
 CARPETA_SALIDA = CARPETA_SECTOR / "resultados"
 CARPETA_DEGRADADOS = CARPETA_SALIDA / "degradadas"
 CARPETA_LOGS = CARPETA_SALIDA / "logs"
+# Evidencia para mantenimiento dinámico: si una corrida falla, estos
+# directorios contienen lo que la IA auditora necesita ver.
+CARPETA_SNAPSHOTS_FRONTEND = CARPETA_SALIDA / "snapshots_frontend"
+CARPETA_REPORTES_MANTENIMIENTO = CARPETA_SALIDA / "reportes_mantenimiento_frontend"
 
-for carpeta in (CARPETA_SALIDA, CARPETA_DEGRADADOS, CARPETA_LOGS):
+for carpeta in (
+    CARPETA_SALIDA, CARPETA_DEGRADADOS, CARPETA_LOGS,
+    CARPETA_SNAPSHOTS_FRONTEND, CARPETA_REPORTES_MANTENIMIENTO,
+):
     carpeta.mkdir(parents=True, exist_ok=True)
+
+
+# Mapa portal → archivos/funciones donde un humano o IA debe buscar la
+# causa cuando el portal cambia su frontend. El reporte de mantenimiento
+# lo usa para guiar la auditoría. Sólo lo conoce el sector.
+CODIGO_POR_PORTAL: dict[str, list[str]] = {
+    # "portal_a": [
+    #     "portal_scrapers/portal_a.py: scrape_listados_portal_a",
+    #     "portal_scrapers/portal_a.py: _extraer_datos_tarjeta",
+    # ],
+    # TODO
+}
 
 RUTA_DB = str(CARPETA_SALIDA / f"historial_{SECTOR}.db")
 NOMBRE_ARCHIVO_CONSOLIDADO = f"consolidado_{SECTOR}.xlsx"

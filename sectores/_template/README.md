@@ -7,19 +7,26 @@ ajustar. La estructura ya refleja todas las dependencias correctas a
 ```
 sectores/<mi_sector>/
 ├── README.md              ← describe el sector y sus portales
-├── __init__.py            ← exporta API pública del sector
-├── config.py              ← URLs, paths, umbrales, .env por sector
+├── __init__.py
+├── config.py              ← URLs, paths, umbrales, .env, CODIGO_POR_PORTAL
 ├── modelos.py             ← AnuncioBase → AnuncioMiSector con campos extra
 ├── limpieza.py            ← pipeline_limpieza(datos_crudos, ...) -> DataFrame
-├── scraper.py             ← orquesta los portales del sector
-├── portales/
+├── scraper.py             ← fachada delgada; sólo rutea al portal_scraper
+├── portal_scrapers/       ← uno por portal — la lógica de parsing vive acá
 │   ├── __init__.py
-│   ├── portal_a.py        ← scrape_portal_a(driver, ...) -> list[dict]
+│   ├── common.py          ← helpers compartidos entre portales del sector
+│   ├── portal_a.py        ← scrape_listados_portal_a(...) -> list[dict]
 │   └── portal_b.py
 ├── extractor_ia.py        ← prompt + caller a DeepSeekExtractor + cache
-├── main.py                ← CLI orquestador (argparse + ejecutar_scraping)
-└── resultados/            ← (gitignore'd) DB, Excel, logs por corrida
+├── main.py                ← CLI orquestador + reporte mantenimiento en fallos
+└── resultados/            ← (gitignore'd) DB, Excel, logs, snapshots, reportes
+    ├── snapshots_frontend/         ← HTML capturado por corrida
+    └── reportes_mantenimiento_frontend/  ← Markdown para IA auditora
 ```
+
+**Patrón inviolable**: `scraper.py` es una fachada que **sólo rutea**. La
+lógica de cada portal vive en `portal_scrapers/<portal>.py`. Cambios de
+selectores / parser → tocás el módulo del portal, NO la fachada.
 
 ## Checklist de 9 pasos
 

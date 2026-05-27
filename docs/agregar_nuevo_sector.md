@@ -54,21 +54,30 @@ En `modelos.py`:
 
 ## Paso 4 — Portales
 
-En `portales/<portal>.py`:
+En `portal_scrapers/<portal>.py` (NO `portales/` — convención v1):
 
+- [ ] Función pública: `scrape_listados_<portal>(browser, operacion,
+      num_paginas, diagnostico=None) -> list[dict]`. El diagnóstico se
+      construye con `core.calidad.nuevo_diagnostico_scraping(...)` y se
+      modifica in-place — el caller lo pasa.
 - [ ] Patrón **Redux → DOM → regex → None** en cascada. Si el portal es
-      Next.js, primero `core.redux.extraer_redux_state(html, [claves])`.
+      Next.js, primero `core.redux.extraer_next_data(html)` +
+      `core.redux.buscar_clave_recursivo(blob, "<clave>")`.
 - [ ] Selectores DOM estables (data-test / data-qa / id). Evitar
       clases CSS que cambian con cada release.
-- [ ] Devolver `(datos_crudos: list[dict], diagnostico: dict)`.
-- [ ] `diagnostico` debe incluir al menos:
-      `portal`, `operacion`, `estrategia`, `paginas_visitadas`,
-      `tarjetas_totales`. Si usa Redux, agregar
-      `redux_paginas_ok`, `redux_paginas_fallidas`,
-      `ratio_match_redux_dom`.
+- [ ] **En cada página visitada** llamar
+      `core.snapshots.guardar_snapshot_html(driver, portal, op, pagina,
+      etapa, config.CARPETA_SNAPSHOTS_FRONTEND, diagnostico)`. Sin
+      esto, las corridas que fallan no dejan evidencia y la IA auditora
+      no puede reparar el portal.
+- [ ] Actualizar contadores: `paginas_visitadas`, `paginas_con_tarjetas`,
+      `tarjetas_totales`, `redux_paginas_ok` / `redux_paginas_fallidas`.
+
+`scraper.py` queda como fachada delgada que sólo rutea al módulo del
+portal según `portal`. No metas lógica de parsing en `scraper.py`.
 
 Si dos portales del sector comparten arquitectura (ej. Navent =
-Urbania + AdondeVivir), centralizar en un módulo común que ambos importen.
+Urbania + AdondeVivir), centralizar en `portal_scrapers/common.py`.
 
 ## Paso 5 — Limpieza
 
@@ -92,6 +101,13 @@ En `limpieza.py`:
       `evaluar_cobertura(df, umbrales, señales_instrumentales)`.
 - [ ] Si el `Veredicto.estado` es `DEGRADADO`, exportar a
       `resultados/degradadas/` y NO continuar con IA ni historial.
+- [ ] En el MISMO punto, llamar
+      `core.mantenimiento_frontend.generar_reporte_mantenimiento_frontend(...)`
+      con el `diagnostico` (que incluye snapshots) y el `df`. Esto deja
+      el handoff para la IA auditora.
+- [ ] Declarar `CODIGO_POR_PORTAL` en `config.py` apuntando a las
+      funciones reales de tus `portal_scrapers/<portal>.py`. El reporte
+      lo usa para guiar la reparación.
 
 ## Paso 7 — Cache + IA
 
