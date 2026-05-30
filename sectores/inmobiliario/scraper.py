@@ -1,7 +1,7 @@
 """
 Dispatcher del scraper inmobiliario — elige la estrategia según el portal.
 
-El trabajo pesado vive en `portales/*.py`. Este módulo solo:
+El trabajo pesado vive en `portal_scrapers/*.py`. Este módulo solo:
   - Abre un BrowserManager (una sola instancia de Chrome por corrida).
   - Enruta al scraper del portal correcto.
   - Inyecta metadatos comunes (portal, tipo_operacion, fecha_extraccion).
@@ -15,7 +15,7 @@ from core.browser import BrowserManager
 from sectores.inmobiliario.config import (
     DELAY_LISTADO, DELAY_DETALLE, TIMEOUT_ELEMENTO,
 )
-from sectores.inmobiliario.portales import navent, properati, remax
+from sectores.inmobiliario.portal_scrapers import navent, properati, remax
 
 logger = logging.getLogger("scraping")
 

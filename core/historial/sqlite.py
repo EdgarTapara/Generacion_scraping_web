@@ -15,9 +15,10 @@ import logging
 import os
 import sqlite3
 from datetime import datetime
-from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
+
+from core.utils import normalizar_enlace as _normalizar_enlace
 
 logger = logging.getLogger("scraping")
 
@@ -50,15 +51,6 @@ _COLUMNAS_BASE_CORRIDAS: dict[str, str] = {
 
 def _quote_ident(nombre: str) -> str:
     return f'"{nombre.replace(chr(34), chr(34) * 2)}"'
-
-
-def _normalizar_enlace(enlace: str) -> str:
-    """URL canónica: scheme + netloc + path sin query/fragment, sin barra final."""
-    if not enlace or not isinstance(enlace, str):
-        return ""
-    p = urlparse(enlace.strip())
-    limpio = urlunparse((p.scheme, p.netloc, p.path, "", "", ""))
-    return limpio.rstrip("/")
 
 
 def _clave_registro(

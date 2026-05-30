@@ -62,3 +62,60 @@ def test_dedup_tolera_columnas_faltantes(tmp_path):
     leida = pd.read_excel(ruta, sheet_name="H")
     assert set(["id", "a", "b"]).issubset(leida.columns)
     assert len(leida) == 2
+
+
+# -----------------------------
+# regeneración desde SQLite
+# -----------------------------
+
+def _historial_con_datos(tmp_path):
+    from core.historial import HistorialSQLite
+    db = str(tmp_path / "h.db")
+    h = HistorialSQLite(
+        ruta_db=db, sector="demo",
+        campos_snapshot=[("precio", "REAL"), ("trimestre", "TEXT")],
+        umbral_ausencias=3, campo_operacion="tipo_operacion",
+    )
+    df = pd.DataFrame({
+        "enlace": ["http://x/1", "http://x/2"],
+        "tipo_operacion": ["venta", "venta"],
+        "precio": [100.0, 200.0],
+        "trimestre": ["2026-T1", "2026-T2"],
+    })
+    h.registrar_corrida(df, "portal_x", "venta", estado_calidad="ok")
+    return db
+
+
+def test_leer_anuncios_sqlite(tmp_path):
+    from core.reportes import leer_anuncios_sqlite
+    db = _historial_con_datos(tmp_path)
+    df = leer_anuncios_sqlite(db, "demo")
+    assert len(df) == 2
+    assert set(["enlace", "precio", "trimestre"]).issubset(df.columns)
+    assert sorted(df["trimestre"]) == ["2026-T1", "2026-T2"]
+
+
+def test_leer_anuncios_sqlite_bd_inexistente(tmp_path):
+    from core.reportes import leer_anuncios_sqlite
+    df = leer_anuncios_sqlite(str(tmp_path / "no_existe.db"), "demo")
+    assert df.empty
+
+
+def test_regenerar_excel_desde_sqlite(tmp_path):
+    from core.reportes import regenerar_excel_desde_sqlite
+    db = _historial_con_datos(tmp_path)
+    ruta = str(tmp_path / "consolidado.xlsx")
+    out = regenerar_excel_desde_sqlite(db, "demo", ruta, nombre_hoja="Consolidado")
+    assert out == ruta
+    leida = pd.read_excel(ruta, sheet_name="Consolidado")
+    assert len(leida) == 2
+    assert "trimestre" in leida.columns
+
+
+def test_regenerar_excel_sin_datos_no_escribe(tmp_path):
+    from core.reportes import regenerar_excel_desde_sqlite
+    db = _historial_con_datos(tmp_path)
+    ruta = str(tmp_path / "vacio.xlsx")
+    out = regenerar_excel_desde_sqlite(db, "sector_inexistente", ruta)
+    assert out is None
+    assert not (tmp_path / "vacio.xlsx").exists()

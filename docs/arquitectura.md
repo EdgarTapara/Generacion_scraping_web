@@ -50,7 +50,7 @@ solo sentido.
 | `core.mantenimiento_frontend` | Generador de reporte Markdown para handoff con IA auditora | `generar_reporte_mantenimiento_frontend` |
 | `core.tipo_cambio` | BCRP DataAPI + cache + conversión auditable | `descargar_tipo_cambio_bcrp`, `aplicar_conversion_tipo_cambio`, `marcar_columnas_estimadas_excel` |
 | `core.nse` | Clasificación por urbanización (lookup, sin ML) | `NSEClassifier`, `NSEConfig`, `asignar_nse_dataframe` |
-| `core.reportes` | Excel acumulativo multi-hoja + formato visual | `ExcelAcumulativo`, `Hoja`, `aplicar_formato_hojas` |
+| `core.reportes` | Excel acumulativo multi-hoja + formato visual + regeneración desde SQLite | `ExcelAcumulativo`, `Hoja`, `aplicar_formato_hojas`, `leer_anuncios_sqlite`, `regenerar_excel_desde_sqlite` |
 | `core.logging` | Logging estructurado con archivo por corrida | `configurar_logging(carpeta_logs)` |
 
 ## Ciclo de vida del anuncio
@@ -73,7 +73,7 @@ siempre `core.utils.normalizar_enlace`.
 ```
 CLI → BrowserManager
    → scraper.scrape_portal_con_diagnostico
-       → portales/<portal>.py (Redux → DOM → regex en cascada)
+       → portal_scrapers/<portal>.py (Redux → DOM → regex en cascada)
    → limpieza.pipeline_limpieza (helpers de core.limpieza)
    → core.calidad.evaluar_cobertura
        │ veredicto.estado == DEGRADADO → degradadas/ (no continúa)
@@ -93,8 +93,9 @@ CLI → BrowserManager
 - **SQLite** (`resultados/historial_<sector>.db`) es la **fuente de verdad
   longitudinal**. Todo el historial canónico vive ahí.
 - **Excel** (`consolidado_<sector>.xlsx`) es una vista cómoda. Si se
-  corrompe, se puede regenerar desde SQLite + Diagnostico de corridas
-  anteriores.
+  corrompe o se pierde, se regenera desde SQLite con
+  `core.reportes.regenerar_excel_desde_sqlite(ruta_db, sector, ruta_xlsx)`
+  — sin re-scrapear los portales.
 - **Cache de IA** (`ia_respuestas` en el mismo SQLite por defecto) es un
   optimización: si se borra, simplemente se reprocesa con DeepSeek.
 

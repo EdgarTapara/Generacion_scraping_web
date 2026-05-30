@@ -5,11 +5,11 @@ mismos que guardaba v1). El resto lo hace el core.
 """
 
 import sqlite3
-from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
 
 from core.historial import HistorialSQLite
+from core.utils import normalizar_enlace
 
 
 # Columnas snapshot del sector inmobiliario + su tipo SQLite.
@@ -50,14 +50,6 @@ def _fecha_desde_primera_vez_visto(valor: str | None) -> str | None:
     return None
 
 
-def _normalizar_enlace(enlace: str) -> str:
-    if not enlace or not isinstance(enlace, str):
-        return ""
-    p = urlparse(enlace.strip())
-    limpio = urlunparse((p.scheme, p.netloc, p.path, "", "", ""))
-    return limpio.rstrip("/")
-
-
 def _fecha_remax_existente(ruta_db: str, enlace: str, operacion: str) -> str | None:
     try:
         with sqlite3.connect(ruta_db) as conn:
@@ -65,7 +57,7 @@ def _fecha_remax_existente(ruta_db: str, enlace: str, operacion: str) -> str | N
                 'SELECT "fecha_publicacion", "primera_vez_visto" FROM "anuncios" '
                 'WHERE "sector" = ? AND "portal" = ? AND "tipo_operacion" = ? '
                 'AND "enlace" = ?',
-                ("inmobiliario", "remax", operacion, _normalizar_enlace(enlace)),
+                ("inmobiliario", "remax", operacion, normalizar_enlace(enlace)),
             ).fetchone()
     except sqlite3.Error:
         return None

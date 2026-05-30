@@ -62,7 +62,7 @@ python -m sectores.<mi_sector>.main --portal <portal> --paginas 5
    sigue existiendo.
 3. Si el blob JSON cambió de estructura: actualizar
    `core.redux.extraer_redux_state` claves esperadas por el sector.
-4. Si los selectores DOM cambiaron: actualizar `sectores/<x>/portales/<portal>.py`.
+4. Si los selectores DOM cambiaron: actualizar `sectores/<x>/portal_scrapers/<portal>.py`.
 5. Grabar fixture HTML nuevo en `tests/fixtures/<portal>/` para
    prevenir regresiones.
 
