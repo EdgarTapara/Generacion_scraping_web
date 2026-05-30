@@ -1,34 +1,43 @@
 """
-Dispatcher del scraper inmobiliario — elige la estrategia según el portal.
+Fachada delgada del scraper inmobiliario.
 
-El trabajo pesado vive en `portal_scrapers/*.py`. Este módulo solo:
-  - Abre un BrowserManager (una sola instancia de Chrome por corrida).
-  - Enruta al scraper del portal correcto.
-  - Inyecta metadatos comunes (portal, tipo_operacion, fecha_extraccion).
+Solo abre el navegador, arma el diagnóstico estándar y rutea al módulo del
+portal en `portal_scrapers/`. Toda la lógica de parseo vive en el módulo
+del portal (aquí Navent), NO en esta fachada. Los tests parchean el módulo
+real (`portal_scrapers.navent`), no esta fachada.
 """
 
 import logging
 from datetime import datetime
 
 from core.browser import BrowserManager
+from core.calidad import nuevo_diagnostico_scraping
 
 from sectores.inmobiliario.config import (
-    DELAY_LISTADO, DELAY_DETALLE, TIMEOUT_ELEMENTO,
+    DELAY_LISTADO, DELAY_DETALLE, TIMEOUT_ELEMENTO, CARPETA_SNAPSHOTS_FRONTEND,
 )
-from sectores.inmobiliario.portal_scrapers import navent, properati, remax
+from sectores.inmobiliario.portal_scrapers import navent
 
 logger = logging.getLogger("scraping")
 
+_NAVENT_PORTALES = {"urbania", "adondevivir"}
 
-def scrape_portal(
+
+def scrape_portal_con_diagnostico(
     portal: str, operacion: str, num_paginas: int, headless: bool = False,
-) -> list[dict]:
-    """Ejecuta scraping completo de un portal+operación."""
+) -> tuple[list[dict], dict]:
+    """Ejecuta el scraping de un portal+operación y devuelve (datos, diagnostico)."""
     logger.info("=" * 60)
-    logger.info(f"SCRAPING: {portal.upper()} - {operacion.upper()}")
-    logger.info(f"Paginas: {num_paginas}")
+    logger.info(f"SCRAPING: {portal.upper()} - {operacion.upper()} ({num_paginas} pág.)")
     logger.info("=" * 60)
 
+    if portal not in _NAVENT_PORTALES:
+        raise ValueError(
+            f"Portal '{portal}' no soportado en este ejemplo (solo Navent: "
+            f"{sorted(_NAVENT_PORTALES)}). Producción vive en v1-portales-web."
+        )
+
+    diagnostico = nuevo_diagnostico_scraping(portal, operacion, "navent")
     browser = BrowserManager(
         headless=headless,
         delay_listado=DELAY_LISTADO,
@@ -38,28 +47,16 @@ def scrape_portal(
     fecha_extraccion = datetime.now().strftime("%Y-%m-%d")
 
     try:
-        logger.info("Extrayendo datos de paginas de listado...")
-
-        if portal in ("urbania", "adondevivir"):
-            resultados = navent.scrape_listados(browser, portal, operacion, num_paginas)
-        elif portal == "properati":
-            resultados = properati.scrape_listados(browser, operacion, num_paginas)
-        elif portal == "remax":
-            resultados = remax.scrape_listados(browser, operacion, num_paginas)
-        else:
-            raise ValueError(f"Portal no soportado: {portal}")
-
-        if not resultados:
-            logger.warning("No se encontraron anuncios. Abortando.")
-            return []
-
-        # Metadatos comunes por registro
+        resultados = navent.scrape_listados(
+            browser, portal, operacion, num_paginas,
+            diagnostico=diagnostico,
+            carpeta_snapshots=CARPETA_SNAPSHOTS_FRONTEND,
+        )
         for r in resultados:
             r["portal"] = portal
             r["tipo_operacion"] = operacion
             r["fecha_extraccion"] = fecha_extraccion
-
-        logger.info(f"Scraping completado: {len(resultados)} anuncios extraidos")
-        return resultados
+        logger.info(f"Scraping completado: {len(resultados)} anuncios")
+        return resultados, diagnostico
     finally:
         browser.cerrar()

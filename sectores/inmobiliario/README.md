@@ -1,46 +1,44 @@
-# sectores/inmobiliario — ejemplo de referencia
+# sectores/inmobiliario — EJEMPLO ILUSTRATIVO
 
-> ⚠️ **No es código de producción.** Sirve como ejemplo cableado que muestra
-> cómo un sector consume `core/`. La implementación productiva de
-> scraping inmobiliario BCRP vive en
-> `../../../INMOBILIARIA/PROYECTO DE SCRAPING NUEVA METODOLOGIA/v1/`.
+> ⚠️ **No es producción y NO se sincroniza solo.** Es una demostración
+> congelada de cómo un sector compone `core/` en un pipeline completo. El
+> scraper inmobiliario productivo del BCRP vive en
+> `../../INMOBILIARIA/v1-portales-web/` y se mantiene aparte.
 
-## Por qué existe este directorio
+## Por qué existe (y por qué es mínimo)
 
-Cuando una persona (o un agente IA) quiere construir un sector nuevo
-necesita ver **un caso completo** que ya consume `core/browser`,
-`core/historial`, `core/extractor_ia`, etc. Mantener una versión
-"vitrina" del sector inmobiliario sirve exactamente para eso.
+Una IA agente (o una persona) que va a construir un sector nuevo necesita
+ver **un caso end-to-end real** que ya consume `core/`. Este ejemplo se
+reduce **a propósito a UN tipo de portal (Navent: Urbania / AdondeVivir)**
+para ser legible y testeable sin red. No intenta cubrir todos los portales
+ni competir con producción.
 
-## Qué NO hacer aquí
+Históricamente este directorio era una copia casi completa de una versión
+vieja de v1 — quedó desfasada respecto al propio framework (le faltaban
+snapshots, diagnóstico y mantenimiento). Se redujo a este ejemplo mínimo
+para que **demuestre la metodología vigente**, no una versión antigua.
 
-- **No replicar nuevas funcionalidades de v1.** Si un patrón nuevo
-  resuelve algo que vale la pena reutilizar, sube directo a `core/`.
-  Este directorio sigue siendo una vitrina de cómo se cablean los
-  módulos de `core/`, no un fork del v1 real.
+## Qué demuestra (pipeline vigente del framework)
 
-- **No correr este sector como producción.** El v1 original tiene
-  configuraciones reales (paths, base NSE, .env, etc.) que no quedan
-  reflejadas aquí. Para correr inmobiliario en producción usar v1/.
+1. `scraper.py` — fachada delgada que rutea a `portal_scrapers/navent.py`.
+2. `portal_scrapers/navent.py` — Redux → DOM en cascada, construye el
+   `diagnostico` estándar (`core.calidad`) y captura snapshots HTML
+   (`core.snapshots`) por página.
+3. `limpieza.py` — helpers de `core.limpieza` + columnas de periodo
+   (`agregar_columnas_periodo`, `derivar_periodo`).
+4. `main.py` — compuerta de calidad **real** (`core.calidad.evaluar_cobertura`,
+   no un gate casero), aislamiento de degradadas + reporte de mantenimiento
+   (`core.mantenimiento_frontend`), IA con cache, NSE (`core.nse`) e
+   historial (`core.historial`) + Excel acumulativo (`core.reportes`).
 
-## Qué SÍ hacer aquí
+## Reglas de este directorio
 
-- **Leer los `__init__.py`** de cada submódulo para entender qué
-  importa de `core/` y cómo lo combina.
-- **Estudiar `main.py`** como ejemplo de orquestador (fases scraping
-  → limpieza → IA → historial → reportes).
-- **Replicar el patrón** en `sectores/_template/` cuando inicies un
-  sector nuevo.
-
-## Diferencias respecto al v1 productivo
-
-| Aspecto | v1 (producción) | sectores/inmobiliario (referencia) |
-|---|---|---|
-| Mantenimiento | Activo, recibe mejoras | Snapshot ilustrativo |
-| Cobertura de portales | Urbania, AdondeVivir, Properati, REMAX | Igual, pero pueden quedar desfasados |
-| Base NSE | `04. BASE DE UBICACIONES.xlsx` real | Ruta de ejemplo |
-| Tipo de cambio | Apunta a SQLite real | Cache aislada |
-| Tests | No tiene tests automatizados (notebook humano) | `tests/sectores/inmobiliario/` cubre fixtures |
+- **No replicar mejoras de producción aquí.** Si un patrón nuevo vale la
+  pena, sube a `core/`. Este sigue siendo una vitrina, no un fork de v1.
+- **No correrlo como producción.** Paths, base NSE y `.env` reales no
+  están aquí; producción es v1-portales-web.
+- La **base NSE** (`datos/base_nse_arequipa.xlsx`) NO se versiona: si no
+  existe, la clasificación NSE se omite y el ejemplo corre igual.
 
 ## Para construir un sector nuevo
 

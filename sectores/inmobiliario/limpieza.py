@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from core.limpieza import (
     agregar_columnas_periodo,
+    derivar_periodo,
     limpiar_fecha_relativa,
     limpiar_precio_pe,
     parsear_numero,
@@ -298,8 +299,6 @@ _TIPOS_RESIDENCIALES = {"departamento", "casa", "terreno", "habitacion"}
 _FUENTE_LEGIBLE = {
     "urbania": "Urbania",
     "adondevivir": "A donde vivir",
-    "properati": "Properati",
-    "remax": "RE/MAX",
 }
 
 
@@ -326,19 +325,6 @@ def _split_monto_por_moneda(
     return out
 
 
-def _derivar_anio_mes_trimestre(fecha: str | None) -> tuple:
-    if not fecha or not isinstance(fecha, str):
-        return (None, None, None)
-    try:
-        ts = pd.to_datetime(fecha, errors="coerce")
-    except Exception:
-        return (None, None, None)
-    if pd.isna(ts):
-        return (None, None, None)
-    trimestre = (ts.month - 1) // 3 + 1
-    return (int(ts.year), int(ts.month), int(trimestre))
-
-
 def construir_export_alberth(df: pd.DataFrame) -> pd.DataFrame:
     """DataFrame interno → esquema 23 columnas del archivo institucional.
 
@@ -354,7 +340,11 @@ def construir_export_alberth(df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         fecha = r.get("fecha_publicacion")
-        anio, mes, trimestre = _derivar_anio_mes_trimestre(fecha)
+        # Periodo desde el helper canónico de core (no recalcular fechas).
+        periodo = derivar_periodo(fecha)
+        anio, mes, trimestre = (
+            periodo["anio"], periodo["mes_num"], periodo["trimestre_num"],
+        )
 
         tipo = _TIPO_CONSOLIDADO.get(
             tipo_raw, tipo_raw.title() if isinstance(tipo_raw, str) else None

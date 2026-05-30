@@ -17,6 +17,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from core.browser import BrowserManager
 from core.browser.selectors import buscar_texto_rapido
+from core.calidad import nuevo_diagnostico_scraping
+from core.snapshots import guardar_snapshot_html
 from sectores.inmobiliario.config import (
     generar_url_listado, MAX_PAGINAS_SEGURIDAD, TIMEOUT_ELEMENTO,
 )
@@ -397,10 +399,26 @@ def fusionar_con_redux(dato_dom: dict, posting: dict, operacion: str) -> dict:
 # =====================================================================
 
 def scrape_listados(
-    browser: BrowserManager, portal: str, operacion: str, num_paginas: int,
+    browser: BrowserManager,
+    portal: str,
+    operacion: str,
+    num_paginas: int,
+    diagnostico: dict | None = None,
+    carpeta_snapshots: str | None = None,
 ) -> list[dict]:
-    """Recorre páginas de listado Navent y extrae datos fusionando Redux+DOM."""
+    """Recorre páginas de listado Navent y extrae datos fusionando Redux+DOM.
+
+    Patrón actual del framework:
+      - Construye/actualiza un `diagnostico` estándar (core.calidad) in-place.
+      - Captura un snapshot HTML por página (core.snapshots) para que la IA
+        de mantenimiento pueda reparar el portal si el frontend cambia.
+    """
+    if diagnostico is None:
+        diagnostico = nuevo_diagnostico_scraping(portal, operacion, "navent")
+
     resultados = []
+    total_matcheados = 0
+    total_con_posting = 0
     pagina = 1
 
     while pagina <= num_paginas and pagina <= MAX_PAGINAS_SEGURIDAD:
@@ -408,6 +426,14 @@ def scrape_listados(
         logger.info(f"  Pagina {pagina}: {url[:80]}...")
 
         driver = browser.navegar(url, tipo="listado")
+        diagnostico["paginas_visitadas"] += 1
+        # Snapshot por página (best-effort, nunca lanza).
+        if carpeta_snapshots:
+            guardar_snapshot_html(
+                driver, portal, operacion, pagina, "listado",
+                carpeta_snapshots, diagnostico,
+            )
+
         tarjetas = _encontrar_tarjetas(driver)
 
         if not tarjetas:
@@ -422,12 +448,16 @@ def scrape_listados(
             logger.info(f"  No se encontraron anuncios en pagina {pagina}. Fin.")
             break
 
+        diagnostico["paginas_con_tarjetas"] += 1
+        diagnostico["tarjetas_totales"] += len(tarjetas)
         logger.info(f"  Encontrados {len(tarjetas)} anuncios")
 
         redux = _extraer_redux_state(driver)
         if redux:
+            diagnostico["redux_paginas_ok"] += 1
             logger.info(f"  Redux state parseado: {len(redux)} postings")
         else:
+            diagnostico["redux_paginas_fallidas"] += 1
             logger.warning("  Redux state no disponible; usando solo DOM como fallback.")
 
         datos_pagina = []
@@ -447,6 +477,8 @@ def scrape_listados(
             datos_pagina.append(dato)
 
         if redux:
+            total_matcheados += matcheados
+            total_con_posting += len(datos_pagina)
             logger.info(
                 f"  Fusion Redux+DOM: {matcheados}/{len(datos_pagina)} postings matcheados"
             )
@@ -454,5 +486,8 @@ def scrape_listados(
         resultados.extend(datos_pagina)
         pagina += 1
 
+    diagnostico["postings_matcheados"] = total_matcheados
+    if total_con_posting:
+        diagnostico["ratio_match_redux_dom"] = total_matcheados / total_con_posting
     logger.info(f"  Total anuncios extraidos: {len(resultados)}")
     return resultados

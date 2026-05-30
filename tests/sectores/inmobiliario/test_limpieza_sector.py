@@ -137,7 +137,7 @@ def test_export_alberth_filtra_no_residencial():
 
 def test_export_alberth_calcula_precio_m2():
     df = pd.DataFrame([{
-        "portal": "remax", "tipo_operacion": "venta",
+        "portal": "urbania", "tipo_operacion": "venta",
         "tipo_inmueble": "casa", "distrito": "Cayma",
         "titulo": "Venta casa Cayma USD 200,000",
         "precio": 200000.0, "moneda": "USD",
@@ -150,7 +150,10 @@ def test_export_alberth_calcula_precio_m2():
     }])
     out = construir_export_alberth(df)
     assert out.iloc[0]["Precio m2 USD"] == 2000.0
-    assert out.iloc[0]["Fuente"] == "RE/MAX"
+    assert out.iloc[0]["Fuente"] == "Urbania"
+    # periodo derivado vía core.limpieza.derivar_periodo
+    assert out.iloc[0]["Año"] == 2026
+    assert out.iloc[0]["Trimestre"] == 2
 
 
 def test_export_alberth_columnas_orden_esperado():
