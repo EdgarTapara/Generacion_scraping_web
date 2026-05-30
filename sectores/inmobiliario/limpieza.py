@@ -13,7 +13,12 @@ import re
 import pandas as pd
 from pydantic import ValidationError
 
-from core.limpieza import limpiar_fecha_relativa, limpiar_precio_pe, parsear_numero
+from core.limpieza import (
+    agregar_columnas_periodo,
+    limpiar_fecha_relativa,
+    limpiar_precio_pe,
+    parsear_numero,
+)
 
 from sectores.inmobiliario.modelos import (
     AnuncioInmobiliario,
@@ -249,6 +254,11 @@ def pipeline_limpieza(
     duplicados = antes - len(df)
     if duplicados > 0:
         logger.info(f"  Eliminados {duplicados} duplicados")
+
+    # Periodo (anio/trimestre/mes) desde la fecha de publicación. Estas
+    # columnas viajan al Excel y al snapshot SQLite para que el BCRP agregue
+    # por trimestre/mes sin recalcular fechas.
+    df = agregar_columnas_periodo(df, "fecha_publicacion")
 
     logger.info(f"  Registros limpios: {len(df)}")
     logger.info(f"  Errores de validacion: {errores}")

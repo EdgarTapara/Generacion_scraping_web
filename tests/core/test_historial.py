@@ -175,3 +175,82 @@ def test_corrida_registra_estado_calidad_en_bitacora(tmp_path):
 
     bitacora = hist.obtener_bitacora()
     assert bitacora.iloc[0]["estado_calidad"] == "advertencia"
+
+
+def test_corrida_degradada_no_muta_desaparecidos_por_defecto(tmp_path):
+    hist = _hist(tmp_path / "h.db")
+    df1 = pd.DataFrame([{"enlace": "https://x.com/1", "titulo": "A", "precio": 10.0}])
+    hist.registrar_corrida(df1, portal="urbania", operacion="alquiler")
+
+    df_vacio = pd.DataFrame(columns=["enlace", "titulo", "precio"])
+    _, stats = hist.registrar_corrida(
+        df_vacio,
+        portal="urbania",
+        operacion="alquiler",
+        estado_calidad="degradado",
+    )
+
+    assert stats["desaparecidos"] == 0
+    assert stats["mutacion_desaparecidos"] is False
+    with sqlite3.connect(tmp_path / "h.db") as conn:
+        row = conn.execute(
+            'SELECT "ausencias_consecutivas", "activo" FROM "anuncios"'
+        ).fetchone()
+    assert row == (0, 1)
+
+
+def test_id_fuente_evita_rerun_idempotente(tmp_path):
+    hist = _hist(tmp_path / "h.db")
+    df = pd.DataFrame([{"enlace": "https://x.com/1", "titulo": "A", "precio": 10.0}])
+    hist.registrar_corrida(
+        df,
+        portal="urbania",
+        operacion="alquiler",
+        id_fuente="edicion-2026-05-16",
+    )
+
+    df_out, stats = hist.registrar_corrida(
+        df,
+        portal="urbania",
+        operacion="alquiler",
+        id_fuente="edicion-2026-05-16",
+    )
+
+    assert stats["omitido_por_rerun"] is True
+    assert stats["mutacion_desaparecidos"] is False
+    assert df_out["estado_anuncio"].tolist() == ["ya_registrado"]
+    assert len(hist.obtener_bitacora()) == 1
+
+
+def test_force_rerun_de_id_fuente_no_marca_ausencias(tmp_path):
+    hist = _hist(tmp_path / "h.db")
+    df = pd.DataFrame([
+        {"enlace": "https://x.com/1", "titulo": "A", "precio": 10.0},
+        {"enlace": "https://x.com/2", "titulo": "B", "precio": 20.0},
+    ])
+    hist.registrar_corrida(
+        df,
+        portal="urbania",
+        operacion="alquiler",
+        id_fuente="edicion-2026-05-16",
+    )
+
+    df_reproceso = pd.DataFrame([
+        {"enlace": "https://x.com/1", "titulo": "A2", "precio": 15.0},
+    ])
+    _, stats = hist.registrar_corrida(
+        df_reproceso,
+        portal="urbania",
+        operacion="alquiler",
+        id_fuente="edicion-2026-05-16",
+        permitir_rerun=True,
+    )
+
+    assert stats["mutacion_desaparecidos"] is False
+    assert stats["desaparecidos"] == 0
+    with sqlite3.connect(tmp_path / "h.db") as conn:
+        ausencias = conn.execute(
+            'SELECT "ausencias_consecutivas" FROM "anuncios" WHERE "enlace"=?',
+            ("https://x.com/2",),
+        ).fetchone()[0]
+    assert ausencias == 0

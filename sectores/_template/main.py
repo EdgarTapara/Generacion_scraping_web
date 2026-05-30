@@ -84,7 +84,8 @@ def ejecutar_scraping(
         #
         # historial = HistorialSQLite(
         #     ruta_db=config.RUTA_DB, sector=config.SECTOR,
-        #     campos_snapshot=[("titulo", "TEXT"), ("precio", "REAL"), ...],
+        #     campos_snapshot=[("titulo", "TEXT"), ("precio", "REAL"),
+        #         ("anio", "INTEGER"), ("trimestre", "TEXT"), ("mes", "TEXT"), ...],
         #     umbral_ausencias=config.UMBRAL_AUSENCIAS,
         #     campo_operacion="tipo_operacion" if config.OPERACIONES else None,
         # )

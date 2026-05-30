@@ -78,3 +78,85 @@ def limpiar_precio_pe(precio_raw: str | None) -> dict:
                 pass
 
     return result
+
+
+_PRECIO_MONEDA_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?P<moneda>US\s*\$|U\s*\$|\$|S\s*/\.?)\s*"
+    r"(?P<numero>\d[\d.,]{0,18})",
+    re.IGNORECASE,
+)
+_PRECIO_ALT_PEN_RE = re.compile(
+    r"\b([1-9]\d{2,5}(?:[.,]\d{3})?)\s*(?:soles|mensual)\b",
+    re.IGNORECASE,
+)
+
+
+def _normalizar_token_precio_publicado(token: str, moneda: str) -> str | None:
+    """Recorta telefonos pegados al precio en avisos impresos/PDF."""
+    token = re.sub(r"\s+", "", token or "")
+    token = re.sub(r"[^0-9.,]", "", token)
+    if not token:
+        return None
+
+    sep_match = re.search(r"[.,]", token)
+    if sep_match:
+        sep = sep_match.group(0)
+        before, after = token.split(sep, 1)
+        if not before or not after:
+            return None
+        if len(after) > 3:
+            first3 = after[:3]
+            if len(before) >= 4:
+                return before
+            if moneda == "PEN" and len(before) == 3 and first3.startswith("00"):
+                return before
+            if len(before) <= 2 and first3 == "000":
+                return before + sep + first3
+            return before + sep + first3
+        return token
+
+    if len(token) > 6:
+        return None
+    return token
+
+
+def _precio_plausible(precio: float | None, moneda: str) -> bool:
+    if precio is None:
+        return False
+    if moneda in {"PEN", "USD"}:
+        return 100 <= precio <= 5_000_000
+    return False
+
+
+def extraer_precio_publicado_pe(texto: str | None) -> dict:
+    """Extrae precio publicado solo con senal monetaria explicita.
+
+    En clasificados PDF los telefonos pueden pegarse al monto, por ejemplo
+    `$680,000959553859`. Esta funcion es mas conservadora que
+    `limpiar_precio_pe`: no acepta numeros pelados como precio.
+    """
+    result = {"precio": None, "moneda": None}
+    if not isinstance(texto, str) or not texto.strip():
+        return result
+
+    for match in _PRECIO_MONEDA_RE.finditer(texto):
+        moneda_raw = match.group("moneda").upper().replace(" ", "")
+        moneda = "PEN" if moneda_raw.startswith("S/") else "USD"
+        token = _normalizar_token_precio_publicado(match.group("numero"), moneda)
+        try:
+            precio = float(token.replace(".", "").replace(",", "")) if token else None
+        except ValueError:
+            precio = None
+        if _precio_plausible(precio, moneda):
+            return {"precio": precio, "moneda": moneda}
+
+    if match := _PRECIO_ALT_PEN_RE.search(texto):
+        token = _normalizar_token_precio_publicado(match.group(1), "PEN")
+        try:
+            precio = float(token.replace(".", "").replace(",", "")) if token else None
+        except ValueError:
+            precio = None
+        if _precio_plausible(precio, "PEN"):
+            return {"precio": precio, "moneda": "PEN"}
+
+    return result

@@ -45,6 +45,15 @@ python -m sectores.<mi_sector>.main --portal <portal> --paginas 5
 - No tocar el historial — la corrida no entró ahí por diseño.
 - Si el motivo es "Redux/DOM match insuficiente" en Navent: revisar si
   el portal cambió estructura.
+- Si la fuente es PDF/diario: no forzar SQLite hasta revisar segmentacion,
+  codigo/seccion y cobertura. Una degradada puede simular desapariciones falsas.
+
+### "Reprocese el mismo PDF o edicion y cambiaron las bajas"
+
+- El sector debe pasar `id_fuente` a `HistorialSQLite.registrar_corrida(...)`.
+- Sin `permitir_rerun=True`, una fuente ya registrada no debe mutar SQLite.
+- Con `permitir_rerun=True`, se refrescan campos pero no se mutan ausencias.
+- Si esto falla, agregar test de idempotencia como en `v1-diarios`.
 
 ### "Un portal cambió su HTML y el scraper deja de extraer"
 
@@ -56,6 +65,14 @@ python -m sectores.<mi_sector>.main --portal <portal> --paginas 5
 4. Si los selectores DOM cambiaron: actualizar `sectores/<x>/portales/<portal>.py`.
 5. Grabar fixture HTML nuevo en `tests/fixtures/<portal>/` para
    prevenir regresiones.
+
+### "El PDF mezcla columnas o pega telefonos a precios"
+
+- Usar `core.ingesta.leer_pdf_columnas(...)` y ajustar `ancho_columna`.
+- Segmentar por codigo/seccion antes de parsear campos.
+- Para precios de clasificados, usar
+  `core.limpieza.extraer_precio_publicado_pe(...)`; no usar numeros pelados
+  como precio publicado.
 
 ### "Tipo de cambio BCRP devuelve vacío"
 

@@ -20,6 +20,7 @@ from core.limpieza import (
     moneda_a_iso,
     limpiar_precio_pe,
     limpiar_fecha_relativa,
+    agregar_columnas_periodo,
 )
 
 logger = logging.getLogger("scraping")
@@ -48,6 +49,12 @@ def pipeline_limpieza(
     df["portal"] = portal
     if operacion is not None:
         df["tipo_operacion"] = operacion
+
+    # Columnas de periodo (anio/trimestre/mes) derivadas de la fecha de
+    # publicación. Viajan al Excel y al snapshot SQLite para que el BCRP
+    # agregue por trimestre/mes. Si tu fecha vive en otra columna, cámbiala.
+    # Recuerda declarar anio/trimestre/mes en `campos_snapshot` del historial.
+    df = agregar_columnas_periodo(df, "fecha_publicacion")
     return df
 
 

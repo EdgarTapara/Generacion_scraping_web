@@ -1,8 +1,13 @@
 """Tests de core/limpieza/ — helpers genéricos."""
 
-from datetime import datetime
+from datetime import date, datetime
+
+import pandas as pd
 
 from core.limpieza import (
+    agregar_columnas_periodo,
+    derivar_periodo,
+    extraer_precio_publicado_pe,
     limpiar_fecha_relativa,
     limpiar_precio_pe,
     moneda_a_iso,
@@ -81,6 +86,29 @@ def test_limpiar_precio_pe_vacio():
     assert r["moneda"] is None
 
 
+def test_extraer_precio_publicado_pe_corta_telefono_usd():
+    r = extraer_precio_publicado_pe("CAYMA vendo casa amplia $680,000959553859")
+    assert r["precio"] == 680000
+    assert r["moneda"] == "USD"
+
+
+def test_extraer_precio_publicado_pe_corta_telefono_soles():
+    r = extraer_precio_publicado_pe("ALQUILO departamento S/.900.00958225667")
+    assert r["precio"] == 900
+    assert r["moneda"] == "PEN"
+
+
+def test_extraer_precio_publicado_pe_no_confunde_telefono_o_m2():
+    assert extraer_precio_publicado_pe("ALQUILO tienda Av. Jesus 917491088") == {
+        "precio": None,
+        "moneda": None,
+    }
+    assert extraer_precio_publicado_pe("Lotizacion $20m2 939935867") == {
+        "precio": None,
+        "moneda": None,
+    }
+
+
 # -----------------------------
 # fechas
 # -----------------------------
@@ -123,3 +151,71 @@ def test_limpiar_fecha_vacia():
     assert limpiar_fecha_relativa(None) is None
     assert limpiar_fecha_relativa("") is None
     assert limpiar_fecha_relativa("  texto sin fecha  ") is None
+
+
+# -----------------------------
+# periodos (mes / trimestre / año)
+# -----------------------------
+
+def test_derivar_periodo_iso():
+    r = derivar_periodo("2026-05-16")
+    assert r["anio"] == 2026
+    assert r["mes"] == "2026-05"
+    assert r["mes_num"] == 5
+    assert r["trimestre"] == "2026-T2"
+    assert r["trimestre_num"] == 2
+
+
+def test_derivar_periodo_limites_trimestre():
+    assert derivar_periodo("2026-01-01")["trimestre"] == "2026-T1"
+    assert derivar_periodo("2026-03-31")["trimestre"] == "2026-T1"
+    assert derivar_periodo("2026-04-01")["trimestre"] == "2026-T2"
+    assert derivar_periodo("2026-12-31")["trimestre"] == "2026-T4"
+
+
+def test_derivar_periodo_acepta_date_datetime_y_timestamp():
+    esperado = {"anio": 2026, "mes": "2026-07", "trimestre": "2026-T3"}
+    for fecha in (date(2026, 7, 9), datetime(2026, 7, 9, 11, 30),
+                  pd.Timestamp("2026-07-09")):
+        r = derivar_periodo(fecha)
+        assert r["anio"] == esperado["anio"]
+        assert r["mes"] == esperado["mes"]
+        assert r["trimestre"] == esperado["trimestre"]
+
+
+def test_derivar_periodo_invalido():
+    for v in (None, "", "texto sin fecha", float("nan")):
+        r = derivar_periodo(v)
+        assert r == {
+            "anio": None, "trimestre": None, "mes": None,
+            "mes_num": None, "trimestre_num": None,
+        }
+
+
+def test_agregar_columnas_periodo_dataframe():
+    df = pd.DataFrame({
+        "fecha_publicacion": ["2026-01-15", "2026-05-20", None],
+        "precio": [100, 200, 300],
+    })
+    out = agregar_columnas_periodo(df, "fecha_publicacion")
+    assert list(out["anio"]) == [2026, 2026, None]
+    assert list(out["trimestre"]) == ["2026-T1", "2026-T2", None]
+    assert list(out["mes"]) == ["2026-01", "2026-05", None]
+    # orden de columnas: las de periodo se agregan al final, en el orden pedido
+    assert list(out.columns)[-3:] == ["anio", "trimestre", "mes"]
+
+
+def test_agregar_columnas_periodo_columna_ausente_no_lanza():
+    df = pd.DataFrame({"precio": [100, 200]})
+    out = agregar_columnas_periodo(df, "fecha_publicacion")
+    assert list(out["anio"]) == [None, None]
+    assert list(out["trimestre"]) == [None, None]
+
+
+def test_agregar_columnas_periodo_subconjunto_y_prefijo():
+    df = pd.DataFrame({"fecha": ["2026-09-01"]})
+    out = agregar_columnas_periodo(
+        df, "fecha", columnas=("trimestre",), prefijo="pub_"
+    )
+    assert out["pub_trimestre"].iloc[0] == "2026-T3"
+    assert "trimestre" not in out.columns

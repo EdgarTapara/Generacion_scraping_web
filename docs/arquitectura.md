@@ -41,7 +41,7 @@ solo sentido.
 | `core.utils` | Normalización canónica (enlaces, texto, hashing) y generación de `publicacion_id` cross-sector | `normalizar_enlace`, `descripcion_hash`, `publicacion_id`, `asignar_publicacion_id` |
 | `core.redux` | Extracción de `__NEXT_DATA__` y búsqueda recursiva genérica | `extraer_next_data`, `buscar_clave_recursivo`, `extraer_redux_state` |
 | `core.browser` | Singleton Chrome con undetected-chromedriver, anti-bot patches | `BrowserManager`, `buscar_texto`, `buscar_texto_rapido` |
-| `core.limpieza` | Helpers puros de parsing genéricos | `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa` |
+| `core.limpieza` | Helpers puros de parsing genéricos + derivación de periodos | `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa`, `derivar_periodo`, `agregar_columnas_periodo` |
 | `core.modelos` | Schema base de cualquier anuncio web | `AnuncioBase`, `EstadoAnuncio` |
 | `core.extractor_ia` | Cliente DeepSeek + interfaz extensible + cache SQLite | `ExtractorIA`, `DeepSeekExtractor`, `CachePublicaciones` |
 | `core.historial` | SQLite acumulativo con ciclo de vida (nuevo→repetido→desaparecido→baja) | `HistorialSQLite` |

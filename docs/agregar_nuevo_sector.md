@@ -9,6 +9,8 @@ producción robusta en 1-2 días con 3-4 portales.
 
 - [ ] Definir el **sector** en una palabra (`empleo`, `financiero`,
       `comercio`). Eso es lo que va en `config.SECTOR`.
+- [ ] Definir si la fuente es web, API o documental/PDF. Si es documental,
+      leer `docs/fuentes_documentales.md` antes de copiar el template web.
 - [ ] Listar los **portales** objetivo y para cada uno: ¿es SPA Next.js?
       ¿HTML server-side? ¿tiene API pública? ¿requiere login?
 - [ ] Identificar las **operaciones** internas (alquiler/venta, full-time/
@@ -79,6 +81,16 @@ portal según `portal`. No metas lógica de parsing en `scraper.py`.
 Si dos portales del sector comparten arquitectura (ej. Navent =
 Urbania + AdondeVivir), centralizar en `portal_scrapers/common.py`.
 
+### Si la fuente es PDF/diario
+
+No crear un falso portal Selenium. Usar:
+
+- `core.ingesta.leer_pdf_columnas(...)` para reconstruir lectura por columnas.
+- `core.ingesta.segmentar_documento(...)` para cortar avisos por codigo/seccion.
+- Un parser por fuente (`diarios/<fuente>.py`, `boletines/<fuente>.py`, etc.).
+- `id_fuente` en historial, por ejemplo `el_pueblo:2026-05-16`, para que un
+  rerun de la misma edicion no infle apariciones ni marque bajas falsas.
+
 ## Paso 5 — Limpieza
 
 En `limpieza.py`:
@@ -92,6 +104,12 @@ En `limpieza.py`:
       - `limpiar_precio_pe` para precios con primario + secundario.
       - `limpiar_fecha_relativa` para fechas en español.
 - [ ] Agregar `fecha_extraccion` y `portal` a cada fila.
+- [ ] Derivar columnas de periodo desde la fecha de publicación:
+      `agregar_columnas_periodo(df, "fecha_publicacion")`. Esto agrega
+      `anio` (int), `trimestre` (`YYYY-T{1..4}`) y `mes` (`YYYY-MM`). El
+      BCRP agrega por trimestre, así que estas columnas son obligatorias
+      en cualquier sector con fecha. Viajan solas al Excel; para que
+      lleguen a SQL hay que declararlas en `campos_snapshot` (Paso 8).
 - [ ] Antes de devolver, validar con Pydantic y poner warnings en columna.
 
 ## Paso 6 — Compuerta de calidad
@@ -146,8 +164,17 @@ df, stats = historial.registrar_corrida(df, portal, operacion,
 
 - [ ] `campos_snapshot` debe incluir TODOS los campos cuya evolución te
       interese ver (cambio de precio, cambio de NSE, etc.).
+- [ ] Incluir las columnas de periodo para poder agregar en SQL por
+      trimestre/mes: `("anio", "INTEGER"), ("trimestre", "TEXT"),
+      ("mes", "TEXT")`. Sin esto, `SELECT trimestre, AVG(precio) ...
+      GROUP BY trimestre` no es posible directo desde SQLite.
 - [ ] Si el sector NO tiene operaciones, pasar `campo_operacion=None`
       y `operacion=None`.
+- [ ] Si la fuente tiene identidad propia de edicion/lote/PDF, pasar
+      `id_fuente=<fuente>:<fecha_o_hash>` y no usar `permitir_rerun=True`
+      salvo reproceso manual validado.
+- [ ] Una corrida degradada no debe mutar ausencias/bajas. El default de
+      `HistorialSQLite` ya protege este caso; si se fuerza, documentar por que.
 
 ## Paso 9 — Exportar a Excel
 

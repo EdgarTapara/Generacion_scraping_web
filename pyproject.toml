@@ -29,6 +29,9 @@ analisis = [
     "jupyter>=1.0",
     "matplotlib>=3.8",
 ]
+pdf = [
+    "pymupdf>=1.24",
+]
 
 [tool.setuptools.packages.find]
 include = ["core*", "sectores*"]

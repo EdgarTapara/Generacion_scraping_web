@@ -48,6 +48,21 @@ que la compuerta de calidad sepa cuánto se perdió.
 - **`descripcion_hash`** se genera con `core.utils.descripcion_hash(texto)`. NO usar otra implementación; el hash debe coincidir byte a byte en todo el pipeline.
 - Si dos lugares calculan el hash distinto, no hay hit y se queman tokens innecesarios.
 
+## Periodos (mes / trimestre / año)
+
+El BCRP razona y publica en **trimestres**. Todo sector con fecha debe
+materializar columnas de periodo derivadas de `fecha_publicacion`:
+
+- `agregar_columnas_periodo(df, "fecha_publicacion")` agrega `anio` (int),
+  `trimestre` (`YYYY-T{1..4}`) y `mes` (`YYYY-MM`).
+- Formato **ordenable lexicográficamente** y sin ambigüedad de locale:
+  `2026-T2`, `2026-05`. Nada de `"II-2026"` ni `"mayo"`.
+- Se calculan **una vez** en la limpieza, después de tener la fecha ISO.
+  Así las mismas columnas fluyen al Excel (vista) y al snapshot SQLite
+  (consultas `GROUP BY trimestre`), sin recalcular.
+- Para que lleguen a SQL hay que declararlas en `campos_snapshot`:
+  `("anio","INTEGER"), ("trimestre","TEXT"), ("mes","TEXT")`.
+
 ## Auditoría visual del Excel
 
 - Header de hoja: fondo `#1F4E79`, fuente blanca negrita.

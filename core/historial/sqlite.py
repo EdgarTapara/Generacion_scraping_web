@@ -39,6 +39,7 @@ _COLUMNAS_BASE_CORRIDAS: dict[str, str] = {
     "fecha": "TEXT",
     "sector": "TEXT",
     "portal": "TEXT",
+    "id_fuente": "TEXT",
     "n_total": "INTEGER",
     "n_nuevos": "INTEGER",
     "n_repetidos": "INTEGER",
@@ -341,6 +342,9 @@ class HistorialSQLite:
         portal: str,
         operacion: str | None = None,
         estado_calidad: str = "ok",
+        id_fuente: str | None = None,
+        permitir_rerun: bool = False,
+        mutar_desaparecidos: bool | None = None,
     ) -> tuple[pd.DataFrame, dict]:
         """Registra una corrida y marca estados en el DataFrame.
 
@@ -349,6 +353,9 @@ class HistorialSQLite:
         """
         hoy = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         df, duplicados_descartados = self._preparar_corrida(df)
+        estado_norm = str(estado_calidad or "").strip().lower()
+        if mutar_desaparecidos is None:
+            mutar_desaparecidos = estado_norm not in {"degradado", "degradada"}
 
         estados: list[str] = []
         nuevos = 0
@@ -357,6 +364,40 @@ class HistorialSQLite:
         with sqlite3.connect(self.ruta_db) as conn:
             self._inicializar(conn)
             cur = conn.cursor()
+
+            es_rerun_fuente = False
+            if id_fuente:
+                where_rerun = '"sector" = ? AND "portal" = ? AND "id_fuente" = ?'
+                params_rerun: list = [self.sector, portal, id_fuente]
+                if self.campo_operacion:
+                    where_rerun += f" AND {_quote_ident(self.campo_operacion)} IS ?"
+                    params_rerun.append(operacion)
+                cur.execute(
+                    f'SELECT "id" FROM "corridas" WHERE {where_rerun} LIMIT 1',
+                    params_rerun,
+                )
+                es_rerun_fuente = cur.fetchone() is not None
+
+            if es_rerun_fuente and not permitir_rerun:
+                df["estado_anuncio"] = ["ya_registrado"] * len(df)
+                stats = {
+                    "nuevos": 0,
+                    "repetidos": 0,
+                    "desaparecidos": 0,
+                    "dados_de_baja": 0,
+                    "duplicados_descartados": duplicados_descartados,
+                    "omitido_por_rerun": True,
+                    "mutacion_desaparecidos": False,
+                    "id_fuente": id_fuente,
+                }
+                logger.warning(
+                    "HistorialSQLite: corrida fuente ya registrada (%s/%s/%s). "
+                    "No se muta SQLite. Usa permitir_rerun=True si corresponde.",
+                    self.sector,
+                    portal,
+                    id_fuente,
+                )
+                return df, stats
 
             nombres_snapshot = [n for n, _ in self._snapshot]
 
@@ -434,53 +475,55 @@ class HistorialSQLite:
             if batch_upd:
                 cur.executemany(sql_upd, batch_upd)
 
-            # Marcar desaparecidos / dados de baja
-            where_activos = '"sector" = ? AND "portal" = ? AND "activo" = 1'
-            params_activos: list = [self.sector, portal]
-            if self.campo_operacion and operacion is not None:
-                where_activos += f" AND {_quote_ident(self.campo_operacion)} = ?"
-                params_activos.append(operacion)
-
-            cur.execute(
-                f'SELECT "clave_registro", "ausencias_consecutivas" '
-                f'FROM "anuncios" WHERE {where_activos}',
-                params_activos,
-            )
-            activos_db = cur.fetchall()
-
             desaparecidos = 0
             dados_de_baja = 0
-            fecha_baja = datetime.now().strftime("%Y-%m-%d")
+            puede_mutar_ausencias = bool(mutar_desaparecidos) and not es_rerun_fuente
 
-            batch_baja: list[tuple] = []
-            batch_ausencia: list[tuple] = []
-            for clave_db, ausencias in activos_db:
-                if clave_db in claves_corrida:
-                    continue
-                desaparecidos += 1
-                nuevas_ausencias = (ausencias or 0) + 1
-                if nuevas_ausencias >= self.umbral_ausencias:
-                    batch_baja.append((nuevas_ausencias, fecha_baja, clave_db))
-                    dados_de_baja += 1
-                else:
-                    batch_ausencia.append((nuevas_ausencias, clave_db))
+            if puede_mutar_ausencias:
+                where_activos = '"sector" = ? AND "portal" = ? AND "activo" = 1'
+                params_activos: list = [self.sector, portal]
+                if self.campo_operacion and operacion is not None:
+                    where_activos += f" AND {_quote_ident(self.campo_operacion)} = ?"
+                    params_activos.append(operacion)
 
-            if batch_baja:
-                cur.executemany(
-                    'UPDATE "anuncios" SET "ausencias_consecutivas" = ?, '
-                    '"activo" = 0, "fecha_baja" = ? WHERE "clave_registro" = ?',
-                    batch_baja,
+                cur.execute(
+                    f'SELECT "clave_registro", "ausencias_consecutivas" '
+                    f'FROM "anuncios" WHERE {where_activos}',
+                    params_activos,
                 )
-            if batch_ausencia:
-                cur.executemany(
-                    'UPDATE "anuncios" SET "ausencias_consecutivas" = ? '
-                    'WHERE "clave_registro" = ?',
-                    batch_ausencia,
-                )
+                activos_db = cur.fetchall()
+
+                fecha_baja = datetime.now().strftime("%Y-%m-%d")
+
+                batch_baja: list[tuple] = []
+                batch_ausencia: list[tuple] = []
+                for clave_db, ausencias in activos_db:
+                    if clave_db in claves_corrida:
+                        continue
+                    desaparecidos += 1
+                    nuevas_ausencias = (ausencias or 0) + 1
+                    if nuevas_ausencias >= self.umbral_ausencias:
+                        batch_baja.append((nuevas_ausencias, fecha_baja, clave_db))
+                        dados_de_baja += 1
+                    else:
+                        batch_ausencia.append((nuevas_ausencias, clave_db))
+
+                if batch_baja:
+                    cur.executemany(
+                        'UPDATE "anuncios" SET "ausencias_consecutivas" = ?, '
+                        '"activo" = 0, "fecha_baja" = ? WHERE "clave_registro" = ?',
+                        batch_baja,
+                    )
+                if batch_ausencia:
+                    cur.executemany(
+                        'UPDATE "anuncios" SET "ausencias_consecutivas" = ? '
+                        'WHERE "clave_registro" = ?',
+                        batch_ausencia,
+                    )
 
             # Bitácora de corrida
-            cols_ins = ["fecha", "sector", "portal"]
-            vals_ins: list = [hoy, self.sector, portal]
+            cols_ins = ["fecha", "sector", "portal", "id_fuente"]
+            vals_ins: list = [hoy, self.sector, portal, id_fuente]
             if self.campo_operacion:
                 cols_ins.append(self.campo_operacion)
                 vals_ins.append(operacion)
@@ -507,6 +550,9 @@ class HistorialSQLite:
             "desaparecidos": desaparecidos,
             "dados_de_baja": dados_de_baja,
             "duplicados_descartados": duplicados_descartados,
+            "omitido_por_rerun": False,
+            "mutacion_desaparecidos": puede_mutar_ausencias,
+            "id_fuente": id_fuente,
         }
         return df, stats
 

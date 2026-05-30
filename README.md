@@ -11,7 +11,7 @@ de Estudios Económicos — BCRP Arequipa.
 ## Filosofía en 3 líneas
 
 1. **Lo que es reusable entre sectores vive en `core/`**: anti-bot,
-   cookies, parser Redux, historial SQLite, cache IA, tipo de cambio
+   cookies, ingesta documental, parser Redux, historial SQLite, cache IA, tipo de cambio
    BCRP, NSE, control de calidad, formato auditable Excel.
 2. **Lo que es sector-específico vive en `sectores/<x>/`** y consume `core/`.
 3. **Para construir un sector nuevo** se copia `sectores/_template/` y
@@ -26,6 +26,7 @@ bcrp-scraping/
 ├── pyproject.toml
 ├── core/                  ← núcleo reutilizable
 │   ├── utils/             normalizar_enlace, hashes, publicacion_id
+│   ├── ingesta/           PDF por columnas + segmentacion documental
 │   ├── redux/             parser __NEXT_DATA__ + búsqueda recursiva
 │   ├── browser/           BrowserManager (undetected-chromedriver, anti-bot)
 │   ├── limpieza/          parsear_numero, moneda_a_iso, limpiar_precio_pe, fechas_es
@@ -52,9 +53,13 @@ bcrp-scraping/
 
 ## Metodologías que aporta cada módulo de `core/`
 
+Nota: para fuentes documentales/PDF, `core.ingesta` aporta lectura por columnas
+y segmentacion por codigo/seccion. Ver `docs/fuentes_documentales.md`.
+
 | Módulo | Patrón clave que captura |
 |---|---|
 | `core.browser` | Una sola instancia de Chrome con `undetected_chromedriver`, monkeypatch para `WinError 6` en Windows, override `CHROME_VERSION_MAIN`, delays aleatorios por tipo de página, cierre best-effort de cookies. |
+| `core.ingesta` | Ingesta documental para PDFs/diarios: ordena bloques por columnas y segmenta avisos por codigo/seccion antes del parser del sector. |
 | `core.redux` | Parser de `__NEXT_DATA__` + búsqueda recursiva por clave. Permite que cualquier scraper de un SPA Next.js (Navent, etc.) priorice el blob JSON hidratado sobre el DOM. |
 | `core.utils` | `normalizar_enlace` (única implementación canónica del proyecto), `descripcion_hash` (normaliza ruido antes de hashear), `publicacion_id` (identificador estable cross-corridas). |
 | `core.extractor_ia` | Cliente DeepSeek con fallback Flash→Pro ante 429/503/timeout, y `CachePublicaciones` SQLite indexada por `(publicacion_id, descripcion_hash, campo)` — no se quema un token cuando el portal reedita un anuncio sin cambiar contenido. |
@@ -128,4 +133,5 @@ Ver [`AGENTS.md`](AGENTS.md). En particular:
 - Convención de capas (`core/` ↔ `sectores/<x>/`).
 - Cuándo subir un patrón a `core/`.
 - Cómo construir un sector nuevo en 10 pasos.
+- Cómo adaptar fuentes PDF/diarios con `docs/fuentes_documentales.md`.
 - Anti-patrones (importar de sectores en core, llamar a red en tests, etc.).

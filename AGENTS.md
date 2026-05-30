@@ -30,8 +30,9 @@ para la API exacta):
 | Módulo | Para qué |
 |---|---|
 | `core.browser` | `BrowserManager` con undetected-chromedriver, monkeypatch __del__, delays aleatorios anti-bot, cierre de cookies, override `CHROME_VERSION_MAIN` |
+| `core.ingesta` | Ingesta documental: PDF por columnas (`leer_pdf_columnas`) y segmentación por código/sección para diarios, boletines o clasificados impresos |
 | `core.redux` | Parser de `__NEXT_DATA__` y búsqueda recursiva por clave. Para SPAs Next.js / portales hidratados (Navent, etc.) |
-| `core.limpieza` | Helpers puros: `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa` |
+| `core.limpieza` | Helpers puros: `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa`. Periodos: `derivar_periodo` y `agregar_columnas_periodo(df, "fecha_publicacion")` → columnas `anio`/`trimestre` (`YYYY-T{1..4}`)/`mes` (`YYYY-MM`) para agregación BCRP |
 | `core.modelos` | `AnuncioBase` Pydantic + `EstadoAnuncio`. Cada sector hereda |
 | `core.extractor_ia` | `DeepSeekExtractor` (cliente OpenAI-compatible con fallback Flash→Pro) + `CachePublicaciones` (SQLite por `publicacion_id + descripcion_hash + campo`) |
 | `core.historial` | `HistorialSQLite` multi-sector con ciclo de vida (nuevo/repetido/desaparecido/dado de baja) y bitácora de corridas |
@@ -67,6 +68,14 @@ para la API exacta):
   debe tener fallback en cascada (Redux → DOM → regex → None).
 - **Nunca pasar datos degradados al historial SQLite.** La compuerta
   de `core.calidad` los desvía a `resultados/degradadas/`.
+- **Nunca omitir las columnas de periodo si el sector tiene fecha.** El
+  BCRP agrega por trimestre. Llamar `agregar_columnas_periodo(df,
+  "fecha_publicacion")` en la limpieza y declarar `anio/trimestre/mes`
+  en `campos_snapshot` para que existan también en SQL.
+- **Nunca mutar ausencias/bajas con reruns o fuentes degradadas.** Para
+  PDFs, diarios o ediciones periódicas usar `id_fuente` en
+  `HistorialSQLite.registrar_corrida(...)`. Un rerun no debe inflar
+  ediciones ni dar de baja avisos por accidente.
 - **`scraper.py` del sector es fachada delgada.** Sólo rutea al
   módulo correspondiente en `portal_scrapers/<portal>.py`. Cualquier
   lógica de parseo va en el módulo del portal, NO en la fachada. Los
@@ -172,6 +181,9 @@ entrenar produciría sesgo sistemático).
   directamente y skipear el browser.
 - Cuando el portal **provee API oficial** (ej. BCRPData) — consumirla
   directo. El módulo `core.tipo_cambio.bcrp` hace exactamente eso.
+- Cuando la fuente es documental/PDF y no web: seguir
+  [`docs/fuentes_documentales.md`](docs/fuentes_documentales.md). No forzar
+  Selenium ni parser HTML sobre un diario impreso.
 
 ## Mantenimiento dinámico ante cambios de frontend
 
@@ -211,4 +223,5 @@ sin reproducir la condición:
 - [`docs/arquitectura.md`](docs/arquitectura.md) — capas y flujo.
 - [`docs/convenciones.md`](docs/convenciones.md) — idioma y estilo.
 - [`docs/agregar_nuevo_sector.md`](docs/agregar_nuevo_sector.md) — checklist paso a paso.
+- [`docs/fuentes_documentales.md`](docs/fuentes_documentales.md) — metodología PDF/diarios.
 - [`docs/runbook_operacion.md`](docs/runbook_operacion.md) — troubleshooting.

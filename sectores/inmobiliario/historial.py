@@ -17,6 +17,10 @@ CAMPOS_SNAPSHOT: list[tuple[str, str | None]] = [
     ("posting_id", "TEXT"),
     ("publicacion_id", "TEXT"),
     ("fecha_publicacion", "TEXT"),
+    # Periodo derivado de fecha_publicacion (agregación trimestral BCRP).
+    ("anio", "INTEGER"),
+    ("trimestre", "TEXT"),
+    ("mes", "TEXT"),
     ("titulo", "TEXT"),
     ("tipo_inmueble", "TEXT"),
     ("distrito", "TEXT"),
