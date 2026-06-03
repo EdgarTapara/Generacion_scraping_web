@@ -8,6 +8,11 @@ de Estudios Económicos — BCRP Arequipa.
 > reutiliza en vez de reinventar. Si vienes a construir un sector nuevo
 > con un agente IA, leé primero [`AGENTS.md`](AGENTS.md).
 
+La brújula correcta es esta: el proyecto busca convertir el aprendizaje de
+inmobiliaria, empleo, diarios/PDF y APIs BCRP en una metodología reutilizable
+para agentes IA. El código importa, pero el contrato principal está en
+`AGENTS.md`, `core/`, `sectores/_template/` y las guías de `docs/`.
+
 ## Filosofía en 3 líneas
 
 1. **Lo que es reusable entre sectores vive en `core/`**: anti-bot,
@@ -99,10 +104,12 @@ Para producción real del scraping inmobiliario usar:
 ## Tests
 
 ```bash
-python -m pytest tests/ -v
+PYTHONPATH='.codex-pydeps;.' python -m pytest tests -q
 ```
 
-Sin llamadas a red ni Chrome — todo con fixtures.
+Resultado auditado el 2026-05-30: `110 passed`. Sin llamadas a red ni Chrome
+real — todo con fixtures/mocks. Si no usas `.codex-pydeps`, instala el paquete
+con extras de desarrollo antes de correr tests.
 
 ## Setup
 
@@ -119,13 +126,17 @@ Requisitos:
 ## Roadmap
 
 - **Sprint 1** ✓ Núcleo `core/` + sector inmobiliario de referencia.
-- **Sprint 2 (extracción metodológica)** ✓ Migración de aprendizajes de v1
+- **Sprint 2 (extracción metodológica)** parcialmente completo: migración de aprendizajes de v1
   productivo: `core.utils`, `core.redux`, `core.extractor_ia.cache`,
   `core.calidad`, `core.tipo_cambio`, `core.nse`, formato auditable.
-  AGENTS.md + scaffold + checklist. (este sprint)
+  `AGENTS.md` + scaffold + checklist + fuentes documentales. Falta endurecer
+  el template como CLI funcional mínimo o declararlo definitivamente como
+  scaffold guiado.
 - **Sprint 3** Sector empleo (Empleos Perú + Computrabajo + SERVIR)
   como segundo consumidor — disparará los nuevos patrones que merezcan
   subir a `core/`.
+- **Sprint 4** Empaquetar la metodología como skill/agente reutilizable para
+  distintos proveedores IA.
 
 ## Para agentes IA
 

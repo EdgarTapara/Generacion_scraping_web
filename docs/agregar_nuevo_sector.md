@@ -1,9 +1,13 @@
 # Agregar un sector nuevo — checklist
 
 Esta guía es para construir un scraper nuevo (empleo, financiero,
-comercio, etc.) reutilizando `core/`. Si todo va bien deberías llegar a
-una primera corrida en 1-2 horas para un portal sencillo, y a una
-producción robusta en 1-2 días con 3-4 portales.
+comercio, etc.) reutilizando `core/`. No es una receta para improvisar un
+script rápido: es el checklist mínimo para que otro agente IA respete la
+metodología BCRP ya validada.
+
+El tiempo real depende de la fuente. Un portal simple puede llegar a primera
+corrida en pocas horas; producción robusta exige fixtures, control de calidad,
+historial, Excel consolidado y validación manual acotada.
 
 ## Antes de empezar
 
@@ -131,6 +135,8 @@ En `limpieza.py`:
 
 En `extractor_ia.py`:
 
+- [ ] Confirmar si IA es necesaria. Si el campo se puede resolver con API
+      oficial, regex confiable o tabla de referencia, no mandar al modelo.
 - [ ] Definir `_SYSTEM_PROMPT` con reglas estrictas (qué NO devolver,
       longitud máxima, formato JSON). `temperature=0.0` para reproducibilidad.
 - [ ] El campo a resolver por IA debe ser **uno** por extractor (si hay
@@ -140,6 +146,10 @@ En `extractor_ia.py`:
       `cache.aplicar_a_dataframe(df, campo)`.
 - [ ] Sólo enviar pendientes a DeepSeek. Guardar respuestas nuevas con
       `cache.guardar(...)` o `cache.guardar_dataframe(...)`.
+
+DeepSeek es el adaptador por defecto del template, no una decisión de negocio.
+Si el sector usa OpenAI, Anthropic, Gemini u otro proveedor, mantener el mismo
+patrón: cache primero, IA solo para pendientes, salida validada antes de SQLite.
 
 ## Paso 8 — Historial SQLite
 

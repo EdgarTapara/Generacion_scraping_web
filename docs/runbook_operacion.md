@@ -12,6 +12,18 @@ python -m sectores.inmobiliario.main --portal urbania --operacion alquiler --pag
 python -m sectores.<mi_sector>.main --portal <portal> --paginas 5
 ```
 
+## Salud del proyecto
+
+En este entorno local, las dependencias estan en `.codex-pydeps`, asi que la
+prueba completa se corre asi:
+
+```powershell
+$env:PYTHONPATH='.codex-pydeps;.'
+& 'C:\Users\donny\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m pytest tests -q
+```
+
+Resultado auditado el 2026-05-30: `110 passed`.
+
 ## Troubleshooting
 
 ### "Chrome no inicia"
@@ -33,10 +45,10 @@ python -m sectores.<mi_sector>.main --portal <portal> --paginas 5
 
 ### "El Excel maestro se corrompió"
 
-- **No paniquear**: la fuente de verdad es SQLite (`historial_<sector>.db`).
+- La fuente de verdad es SQLite (`historial_<sector>.db`).
 - Borrar el Excel y re-correr: `ExcelAcumulativo` lo recrea desde cero
   con la corrida actual; el historial completo se reconstruye con
-  un helper de re-export desde SQLite (ver TODO en `docs/`).
+  `core.reportes.regenerar_excel_desde_sqlite(...)`.
 
 ### "Una corrida quedó marcada como DEGRADADA"
 

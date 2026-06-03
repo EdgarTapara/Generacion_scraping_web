@@ -12,6 +12,13 @@ real durante el desarrollo del scraping inmobiliario v1. La meta es que
 cualquier scraper nuevo (empleo, financiero, comercio, etc.) reutilice
 estos patrones en vez de reinventarlos.
 
+El objetivo base es que este repositorio funcione como **contrato de trabajo
+para agentes IA**: Codex, Claude, Gemini, OpenAI API, Anthropic API o cualquier
+otro modelo debe poder leer estas reglas y construir un sector nuevo sobre
+la metodología BCRP ya validada. No optimices para "hacer que corra una vez";
+optimiza para trazabilidad, memoria histórica, evidencia auditable y
+reproducibilidad institucional.
+
 **Regla mental**: si vas a copiar lógica entre dos sectores, primero
 pregúntate "¿debería esto vivir en `core/`?".
 
@@ -68,6 +75,11 @@ para la API exacta):
   debe tener fallback en cascada (Redux → DOM → regex → None).
 - **Nunca pasar datos degradados al historial SQLite.** La compuerta
   de `core.calidad` los desvía a `resultados/degradadas/`.
+- **Nunca tratar al proveedor IA como metodología.** Hoy el template usa
+  DeepSeek por costo y compatibilidad OpenAI, pero el patrón real es:
+  reglas determinísticas + cache + IA solo para pendientes + salida auditable.
+  Si se cambia a OpenAI, Anthropic, Gemini u otro, se cambia el adaptador,
+  no las reglas de negocio.
 - **Nunca omitir las columnas de periodo si el sector tiene fecha.** El
   BCRP agrega por trimestre. Llamar `agregar_columnas_periodo(df,
   "fecha_publicacion")` en la limpieza y declarar `anio/trimestre/mes`
@@ -105,7 +117,9 @@ paso a paso. El template ya tiene:
 - `main.py` con la orquestación de fases y CLI argparse.
 
 Cada archivo tiene `# TODO:` con anclas concretas — no hay que descubrir
-las dependencias a fuerza de `grep`.
+las dependencias a fuerza de `grep`. El template es un **scaffold guiado**:
+no es producción hasta que el agente complete los TODOs, defina umbrales,
+agregue fixtures y corra tests del sector.
 
 ## Convenciones de código
 
@@ -140,6 +154,14 @@ solver automático.
 La normalización del texto antes de hashear vive en `core.utils.texto.descripcion_hash`
 y debe usarse igual en TODO el pipeline. Si dos lugares hashean distinto,
 no hay hit y se quema el token.
+
+La secuencia correcta es:
+
+1. Resolver con parser determinístico o API oficial.
+2. Aplicar cache.
+3. Enviar a IA solo filas/campos pendientes.
+4. Guardar respuesta nueva con fuente/modelo.
+5. Nunca permitir que una respuesta IA sin validación contamine SQLite.
 
 `publicacion_id` se arma como:
 - `<sector>:<portal>:<operacion>:posting:<id_del_portal>` si existe.
