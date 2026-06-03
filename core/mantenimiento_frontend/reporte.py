@@ -20,12 +20,164 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Iterable, Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+# Pista textual de fallo de red/host inalcanzable (firewall, DNS, portal caído).
+# Si aparece, NO es cambio de frontend ni bug de parser: no hay que tocar código.
+_PATRON_RED = re.compile(
+    r"connecttimeout|connectionerror|read timed out|timed out|max retries|"
+    r"failed to establish|newconnectionerror|getaddrinfo|name or service not known|"
+    r"connection refused|connection aborted|connection reset|"
+    r"sslerror|sslcertverif|proxyerror|nameresolutionerror",
+    re.I,
+)
+
+
+def clasificar_fallo(
+    *,
+    estado: str,
+    motivos: list[str] | None,
+    diagnostico: dict[str, Any] | None,
+    excepcion: str | None,
+) -> dict[str, Any]:
+    """Clasifica la causa raíz de una corrida fallida.
+
+    El objetivo es que la IA auditora NO revise todo el proyecto en vano: el
+    reporte le dice de antemano la categoría del fallo, si es o no un bug de
+    código, y qué superficie tocar. Devuelve un dict con ``categoria``,
+    ``es_bug_de_codigo``, ``causa``, ``accion`` y ``superficie`` (clave para
+    buscar en el mapa ``superficie_por_categoria`` que declara el sector).
+
+    Heurística (orden importa):
+        1. RED_O_PORTAL_CAIDO — el host no respondió. No es código.
+        2. ANTI_BOT — respondió con desafío/403/429. El parser está bien;
+           el portal ahora exige navegador real (escalar a core.browser).
+        3. FRONTEND_LISTADO — hubo páginas pero 0 tarjetas (cambió el HTML).
+        4. DETALLE — hubo tarjetas pero ningún detalle se extrajo.
+        5. COBERTURA_BAJA — hay filas pero faltan campos clave (limpieza).
+        6. EXCEPCION — excepción no atribuible a la red.
+    """
+    motivos = motivos or []
+    diag = diagnostico or {}
+    texto = " ".join(motivos) + " " + (excepcion or "")
+
+    paginas = int(diag.get("paginas_visitadas") or 0)
+    tarjetas = int(diag.get("tarjetas_totales") or 0)
+    intentos = int(diag.get("detalle_intentos") or 0)
+    exitos = int(diag.get("detalle_exitos") or 0)
+
+    if _PATRON_RED.search(texto):
+        return {
+            "categoria": "RED_O_PORTAL_CAIDO",
+            "es_bug_de_codigo": False,
+            "causa": (
+                "El host no respondió (timeout de conexión / conexión rechazada / "
+                "DNS / SSL). Es bloqueo de red o firewall, o el portal está caído. "
+                "NO es un cambio de frontend ni un bug del parser."
+            ),
+            "accion": (
+                "NO modificar el parser ni la limpieza. Relanzar desde una red con "
+                "acceso al host (o VPN). Revisar la URL base SOLO si el dominio del "
+                "portal cambió de forma permanente."
+            ),
+            "superficie": "RED",
+        }
+
+    if diag.get("anti_bot") or re.search(
+        r"\b403\b|\b429\b|forbidden|too many requests|cloudflare|datadome|"
+        r"just a moment|captcha|anti-?bot",
+        texto, re.I,
+    ):
+        return {
+            "categoria": "ANTI_BOT",
+            "es_bug_de_codigo": True,
+            "causa": (
+                "El portal respondió con un bloqueo anti-bot (Cloudflare/DataDome/"
+                "captcha/403/429). El parser está bien: el portal ahora exige un "
+                "navegador real con fingerprint humano."
+            ),
+            "accion": (
+                "Escalar a la estrategia de navegador del framework: usar "
+                "`core.browser` (undetected-chromedriver) para esta operación en "
+                "vez de `core.http`. Ver AGENTS.md → 'HTTP-first y escalado a navegador'."
+            ),
+            "superficie": "ANTI_BOT",
+        }
+
+    if paginas > 0 and tarjetas == 0:
+        return {
+            "categoria": "FRONTEND_LISTADO",
+            "es_bug_de_codigo": True,
+            "causa": (
+                "El portal respondió (se visitaron páginas) pero el parser no "
+                "extrajo ninguna tarjeta. Lo más probable es que el HTML del "
+                "listado cambió (clases/estructura) o cambió la fuente embebida."
+            ),
+            "accion": (
+                "Comparar el snapshot HTML capturado contra la fixture vieja y "
+                "actualizar SOLO los selectores del parser de listado del portal."
+            ),
+            "superficie": "LISTADO",
+        }
+
+    if tarjetas > 0 and intentos > 0 and exitos == 0:
+        return {
+            "categoria": "DETALLE",
+            "es_bug_de_codigo": True,
+            "causa": (
+                "El listado funcionó (hay tarjetas) pero la extracción de detalle "
+                "falló en todos los casos (página de detalle o su parser)."
+            ),
+            "accion": (
+                "Revisar SOLO la extracción de detalle del portal. No tocar el "
+                "parser de listado."
+            ),
+            "superficie": "DETALLE",
+        }
+
+    if re.search(r"cobertura|por debajo|umbral|campo", texto, re.I):
+        return {
+            "categoria": "COBERTURA_BAJA",
+            "es_bug_de_codigo": True,
+            "causa": (
+                "Se extrajeron filas pero la cobertura de campos clave quedó por "
+                "debajo del umbral. Suele ser limpieza/normalización desactualizada."
+            ),
+            "accion": (
+                "Revisar SOLO las reglas deterministas de limpieza/normalización "
+                "de los campos con baja cobertura (ver tabla de cobertura)."
+            ),
+            "superficie": "LIMPIEZA",
+        }
+
+    if excepcion:
+        return {
+            "categoria": "EXCEPCION",
+            "es_bug_de_codigo": True,
+            "causa": "La corrida lanzó una excepción no atribuible a la red.",
+            "accion": (
+                "Leer el traceback al final del reporte y reparar el módulo del "
+                "portal en el punto exacto que lo lanzó."
+            ),
+            "superficie": "EXCEPCION",
+        }
+
+    return {
+        "categoria": "DESCONOCIDO",
+        "es_bug_de_codigo": True,
+        "causa": "No se pudo clasificar automáticamente la causa.",
+        "accion": (
+            "Revisar motivos, diagnóstico crudo y snapshots para ubicar la "
+            "superficie afectada antes de tocar código."
+        ),
+        "superficie": "DESCONOCIDO",
+    }
 
 
 def _valor_serializable(valor: Any) -> Any:
@@ -108,6 +260,7 @@ def generar_reporte_mantenimiento_frontend(
     ruta_degradada: str | None = None,
     excepcion: str | None = None,
     codigo_por_portal: Mapping[str, list[str]] | None = None,
+    superficie_por_categoria: Mapping[str, list[str]] | None = None,
     archivos_lectura_obligada: Iterable[str] = (
         "AGENTS.md",
         "main.py",
@@ -137,6 +290,10 @@ def generar_reporte_mantenimiento_frontend(
         codigo_por_portal: mapa {portal: ["archivo: funcion", ...]} con
             las funciones del sector donde buscar la causa. El sector
             lo declara — `core/` no lo conoce.
+        superficie_por_categoria: mapa {superficie: ["archivo: funcion", ...]}
+            con la superficie EXACTA a tocar según la categoría del fallo
+            (LISTADO, DETALLE, LIMPIEZA, ANTI_BOT, RED, ...). Si está, manda
+            sobre `codigo_por_portal`: el reporte dice "tocar SOLO esto".
         archivos_lectura_obligada: archivos del sector que la IA auditora
             debe leer antes de proponer un cambio. Defaults a los típicos.
         campos_cobertura: qué campos tabular en la sección cobertura.
@@ -151,10 +308,21 @@ def generar_reporte_mantenimiento_frontend(
     nombre = f"{portal}_{operacion or 'sin_op'}_{estado}_frontend_{sello}.md"
     ruta = carpeta / nombre
 
-    prioridad = _inferir_prioridad(estado, motivos, excepcion)
+    clasificacion = clasificar_fallo(
+        estado=estado, motivos=motivos, diagnostico=diagnostico, excepcion=excepcion,
+    )
+    if clasificacion["categoria"] == "RED_O_PORTAL_CAIDO":
+        prioridad = "P2 - red/infra (no es bug de codigo)"
+    else:
+        prioridad = _inferir_prioridad(estado, motivos, excepcion)
     cobertura = _cobertura_campos(df, campos_cobertura)
+    # Superficie precisa según la categoría del fallo (la declara el sector).
+    # Si no hay mapa para la categoría, cae al mapa por portal y, en último
+    # caso, a un default genérico.
+    superficie = (superficie_por_categoria or {}).get(clasificacion["superficie"])
     codigo = (
-        (codigo_por_portal or {}).get(portal)
+        superficie
+        or (codigo_por_portal or {}).get(portal)
         or [
             "<sector>/portal_scrapers/<portal>.py",
             "<sector>/scraper.py",
@@ -177,6 +345,23 @@ def generar_reporte_mantenimiento_frontend(
         f"- Prioridad sugerida: {prioridad}",
         f"- Archivo degradado asociado: `{ruta_degradada or '-'}`",
         "",
+        "## Clasificacion automatica del fallo (lee esto primero)",
+        "",
+        "Esta seccion existe para ahorrar trabajo: te dice de antemano la causa "
+        "probable y si hay que tocar codigo o no. No revises todo el proyecto.",
+        "",
+        f"- **Categoria**: `{clasificacion['categoria']}`",
+        f"- **¿Es bug de codigo?**: "
+        f"{'SI' if clasificacion['es_bug_de_codigo'] else 'NO — no toques el codigo'}",
+        f"- **Causa probable**: {clasificacion['causa']}",
+        f"- **Accion recomendada**: {clasificacion['accion']}",
+        "",
+        "### Tocar SOLO estos archivos/funciones",
+        "",
+    ]
+    lineas.extend([f"- `{entrada}`" for entrada in codigo])
+    lineas.extend([
+        "",
         "## Diagnostico operativo",
         "",
         "Este reporte se genera cuando la corrida no debe asumirse como normal. "
@@ -186,7 +371,7 @@ def generar_reporte_mantenimiento_frontend(
         "",
         "### Motivos",
         "",
-    ]
+    ])
     lineas.extend([f"- {m}" for m in motivos] or ["- Sin motivos detallados capturados."])
 
     lineas.extend([
@@ -233,25 +418,23 @@ def generar_reporte_mantenimiento_frontend(
         "",
         "## Instrucciones para la IA auditora",
         "",
-        f"1. Leer primero {', '.join(f'`{a}`' for a in archivos_lectura_obligada)}.",
-        "2. Abrir los snapshots HTML listados arriba y compararlos contra los "
-        "fixtures/manuales del sector si existen.",
+        "0. Si la categoria es `RED_O_PORTAL_CAIDO`, **detente**: no es codigo. "
+        "Reporta al tecnico que el host esta inalcanzable y termina.",
+        f"1. Contexto minimo: leer {', '.join(f'`{a}`' for a in archivos_lectura_obligada)}.",
+        "2. Abrir SOLO los archivos de 'Tocar SOLO estos archivos/funciones' y los "
+        "snapshots HTML listados; compararlos contra los fixtures del sector si existen.",
         "3. Confirmar si el fallo viene de frontend, bloqueo anti-bot, datos "
-        "embebidos (Redux/__NEXT_DATA__/XHR), parser local o limpieza posterior.",
+        "embebidos (Redux/__NEXT_DATA__/JSON-LD/XHR), parser local o limpieza.",
         "4. Preferir fuentes estructuradas antes que selectores visuales.",
-        "5. Cambiar solo el parser/selectores del portal afectado. No mover "
-        "modulos transversales (NSE, IA, SQLite, Excel) de lugar.",
+        "5. Reparar unicamente la superficie indicada por la categoria. No mover "
+        "modulos transversales (NSE, IA, SQLite, Excel, `core/`) de lugar.",
         "6. Agregar o actualizar una prueba de regresion con fixture local "
         "antes de correr el portal real.",
         "7. Ejecutar tests del sector. Si pasa, corrida acotada de validacion: "
         "`python -m sectores.<sector>.main --portal <portal> --paginas 1 --headless`.",
         "8. Documentar el cambio en este reporte y verificar que el historico "
         "longitudinal NO recibio datos contaminados.",
-        "",
-        "## Archivos y funciones probables",
-        "",
     ])
-    lineas.extend([f"- `{entrada}`" for entrada in codigo])
 
     lineas.extend([
         "",

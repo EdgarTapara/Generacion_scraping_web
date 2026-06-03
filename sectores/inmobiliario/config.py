@@ -66,6 +66,13 @@ os.makedirs(CARPETA_SALIDA, exist_ok=True)
 RUTA_DB = os.path.join(CARPETA_SALIDA, "historial_inmobiliario.db")
 UMBRAL_AUSENCIAS = 3  # corridas quincenales consecutivas
 
+# --- Tipo de cambio BCRP (conversión analítica USD<->PEN) ---
+# Analítico, NO tributario. No sobrescribe montos observados: agrega columnas
+# estimadas auditables que se pintan en rojo en el Excel. El cache vive en la
+# misma DB del historial. Si no hay red ni cache, las columnas quedan vacías
+# (degradación silenciosa, igual que NSE) y el ejemplo corre offline.
+TC_MODO = "venta"  # promedio | compra | venta
+
 # Corridas degradadas: aisladas aquí, NUNCA tocan el historial.
 CARPETA_DEGRADADAS = os.path.join(CARPETA_SALIDA, "degradadas")
 
@@ -97,6 +104,16 @@ SENALES_INSTRUMENTALES_NAVENT = ("area_total_m2", "latitud", "longitud", "anunci
 CODIGO_POR_PORTAL = {
     "urbania": ["portal_scrapers/navent.py: scrape_listados / _extraer_redux_state"],
     "adondevivir": ["portal_scrapers/navent.py: scrape_listados / _extraer_redux_state"],
+}
+
+# Superficie EXACTA a tocar según la categoría del fallo (la clasifica
+# core.mantenimiento_frontend.clasificar_fallo). Si está, manda sobre
+# CODIGO_POR_PORTAL: el reporte dice "tocar SOLO esto" y la IA auditora
+# no revisa todo el sector.
+SUPERFICIE_POR_CATEGORIA = {
+    "LISTADO": ["portal_scrapers/navent.py: scrape_listados / _extraer_redux_state"],
+    "LIMPIEZA": ["limpieza.py: pipeline_limpieza / construir_titulo"],
+    "ANTI_BOT": ["Navent rara vez bloquea; revisar core.browser y delays antes de tocar el parser"],
 }
 
 

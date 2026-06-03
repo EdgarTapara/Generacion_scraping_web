@@ -82,7 +82,10 @@ def test_corrida_sana_registra_historial_y_escribe_excel(tmp_path, monkeypatch):
     monkeypatch.setattr(main_mod.config, "RUTA_DB", str(tmp_path / "h.db"))
     monkeypatch.setattr(main_mod.config, "CARPETA_SALIDA", str(tmp_path))
 
-    df_out, stats = main_mod.ejecutar_scraping("urbania", "venta", 1, usar_ia=False)
+    # usar_tc=False: el TC pega a la API del BCRP; el happy path se queda offline.
+    df_out, stats = main_mod.ejecutar_scraping(
+        "urbania", "venta", 1, usar_ia=False, usar_tc=False,
+    )
 
     assert df_out is not None
     assert stats["nuevos"] == 1
@@ -93,3 +96,44 @@ def test_corrida_sana_registra_historial_y_escribe_excel(tmp_path, monkeypatch):
     with sqlite3.connect(tmp_path / "h.db") as conn:
         row = conn.execute('SELECT trimestre, mes FROM "anuncios"').fetchone()
     assert row == ("2026-T2", "2026-04")
+
+
+def test_tipo_cambio_agrega_columnas_estimadas_y_las_marca(tmp_path, monkeypatch):
+    """TC cableado: la conversión agrega columnas estimadas que llegan al Excel
+    y se pintan en rojo. Se parchea la conversión para no pegar a la API BCRP."""
+    monkeypatch.setattr(
+        main_mod, "scrape_portal_con_diagnostico",
+        lambda p, o, n, headless=False: ([{"enlace": "x"}], _diag_navent_ok()),
+    )
+    monkeypatch.setattr(main_mod, "pipeline_limpieza", lambda d, p, o: _df_sano())
+    monkeypatch.setattr(main_mod.config, "RUTA_DB", str(tmp_path / "h.db"))
+    monkeypatch.setattr(main_mod.config, "CARPETA_SALIDA", str(tmp_path))
+
+    def _fake_tc(df, ruta_cache, modo):
+        # El anuncio sano viene en USD; el TC estimaría el Monto S/.
+        out = df.copy()
+        out["Monto S/ estimado TC"] = 740000.0
+        return out
+
+    monkeypatch.setattr(main_mod, "aplicar_conversion_tipo_cambio", _fake_tc)
+
+    df_out, stats = main_mod.ejecutar_scraping(
+        "urbania", "venta", 1, usar_ia=False, usar_tc=True,
+    )
+
+    ruta = tmp_path / "urbania_venta_historico.xlsx"
+    assert ruta.exists()
+
+    # La columna estimada llegó al Consolidado con su valor.
+    consolidado = pd.read_excel(ruta, sheet_name="Consolidado")
+    assert "Monto S/ estimado TC" in consolidado.columns
+    assert (consolidado["Monto S/ estimado TC"] == 740000.0).any()
+
+    # Y la celda quedó pintada en rojo (auditoría visual).
+    from openpyxl import load_workbook
+    wb = load_workbook(ruta)
+    ws = wb["Consolidado"]
+    headers = {c.value: i for i, c in enumerate(ws[1], start=1)}
+    col = headers["Monto S/ estimado TC"]
+    rgb = ws.cell(row=2, column=col).font.color.rgb
+    assert str(rgb).endswith("C00000")

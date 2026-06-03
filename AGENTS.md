@@ -22,6 +22,43 @@ reproducibilidad institucional.
 **Regla mental**: si vas a copiar lógica entre dos sectores, primero
 pregúntate "¿debería esto vivir en `core/`?".
 
+## Compuerta de intake (NO se rompe — antes de escribir código)
+
+Cuando el usuario pide scrapear un **sitio nuevo**, NO empieces a escribir
+código de inmediato. Un scraper sin contexto produce datos que nadie pidió y
+desperdicia trabajo. Primero completá esta compuerta en dos pasos:
+
+**Paso 1 — Entrevista de propósito (antes de tocar el sitio).** Preguntá al
+usuario y registrá las respuestas:
+
+- **¿Para qué?** ¿Qué pregunta económica/analítica del BCRP responde este
+  scraping? (ej. seguimiento de precios de alquiler, vacantes por sector).
+- **¿Qué universo?** Región/segmento/operación de interés y qué dejar fuera.
+- **¿Qué horizonte?** ¿Foto puntual o serie longitudinal? (define si hace
+  falta historial SQLite + ciclo de vida o basta un volcado).
+
+**Paso 2 — Exposición de hallazgos (después de inspeccionar/parsear la
+página, antes de construir el pipeline).** Inspeccioná la fuente (HTML,
+`__NEXT_DATA__`, JSON-LD, XHR/API, PDF) y devolvé al usuario, para que
+confirme antes de codear:
+
+- **Qué datos hay disponibles realmente** por anuncio/registro (lista de
+  campos observados, no los deseados), y la fuente de cada uno.
+- **Temporalidad del dato**: ¿hay fecha de publicación? ¿es absoluta o
+  relativa ("hace 3 días")? El periodo analítico SIEMPRE sale de la fecha
+  de publicación, nunca de la de extracción.
+- **Volumen y paginación**: ¿cuántos registros, cuántas páginas?
+- **Cada cuánto correr**: cadencia sugerida (diaria/quincenal/mensual) según
+  cómo se actualiza la fuente y el uso analítico.
+- **Estrategia de acceso**: ¿`core.http` (requests) basta o exige
+  `core.browser`? ¿hay anti-bot? ¿API oficial?
+- **Riesgos/lagunas**: campos ausentes, anti-bot, calidad dudosa.
+
+Sólo después de que el usuario confirma propósito + hallazgos, se diseña el
+sector siguiendo `docs/agregar_nuevo_sector.md`. Si el usuario ya dio todo
+el contexto explícitamente, resumilo y confirmá en una línea — no lo saltes
+en silencio.
+
 ## Capas
 
 ```
@@ -36,7 +73,8 @@ para la API exacta):
 
 | Módulo | Para qué |
 |---|---|
-| `core.browser` | `BrowserManager` con undetected-chromedriver, monkeypatch __del__, delays aleatorios anti-bot, cierre de cookies, override `CHROME_VERSION_MAIN` |
+| `core.http` | **HTTP-first**: `HttpClient` (`requests` + retries + throttle + `connect_timeout` para fail-fast en hosts bloqueados) y `detectar_bloqueo_anti_bot(status, texto)`. Primera opción para portales con HTML server-side / JSON / XHR. Empezar liviano; escalar a `core.browser` sólo cuando la detección anti-bot dispara |
+| `core.browser` | `BrowserManager` con undetected-chromedriver, monkeypatch __del__, delays aleatorios anti-bot, cierre de cookies, override `CHROME_VERSION_MAIN`. **No es el default**: usar sólo si el portal exige navegador real (SPA dependiente de JS o bloqueo anti-bot confirmado) |
 | `core.ingesta` | Ingesta documental: PDF por columnas (`leer_pdf_columnas`) y segmentación por código/sección para diarios, boletines o clasificados impresos |
 | `core.redux` | Parser de `__NEXT_DATA__` y búsqueda recursiva por clave. Para SPAs Next.js / portales hidratados (Navent, etc.) |
 | `core.limpieza` | Helpers puros: `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa`. Periodos: `derivar_periodo` y `agregar_columnas_periodo(df, "fecha_publicacion")` → columnas `anio`/`trimestre` (`YYYY-T{1..4}`)/`mes` (`YYYY-MM`) para agregación BCRP |
@@ -97,6 +135,15 @@ para la API exacta):
   `generar_reporte_mantenimiento_frontend(...)` y los `portal_scrapers`
   DEBEN haber llamado `guardar_snapshot_html(...)` en cada página.
   Sin evidencia, una IA auditora no puede reparar el portal.
+- **Nunca dejar copias muertas de `core/` en un proyecto.** Si construís un
+  proyecto standalone (fuera de este repo) que adopta metodología, copiá
+  SÓLO los módulos que el proyecto realmente importa, anotá su procedencia
+  en un manifiesto y corré la compuerta de poda antes de cerrar. Un módulo
+  con 0 importadores se borra. Ver "Proyectos standalone" abajo.
+- **HTTP-first.** No abras un navegador "por las dudas". Empezá con
+  `core.http` (requests). Escalá a `core.browser` sólo si el portal es una
+  SPA que depende de JS o si `detectar_bloqueo_anti_bot` confirma un
+  desafío. Un Chrome por anuncio es el antipatrón más caro del proyecto.
 
 ## Cómo construir un sector nuevo
 
@@ -121,6 +168,37 @@ las dependencias a fuerza de `grep`. El template es un **scaffold guiado**:
 no es producción hasta que el agente complete los TODOs, defina umbrales,
 agregue fixtures y corra tests del sector.
 
+## Proyectos standalone: cómo consumir la metodología sin copias muertas
+
+Hay dos formas de usar esta metodología:
+
+1. **Sector dentro de este repo** (`sectores/<x>/`): importa directo de
+   `core/`. **Cero copias.** Es el caso ideal.
+2. **Proyecto standalone** (repo/carpeta aparte, como el scraper de empleo):
+   no puede importar `core/` por path. Acá el riesgo es copiar `core/`
+   entero y terminar con módulos que nadie usa, ensuciando el árbol y
+   confundiendo a quien revisa archivo por archivo (problema real observado
+   en empleo: se copió `comun/modelos`, `comun/...` sin importadores).
+
+**Para proyectos standalone — generación selectiva + poda (obligatorio):**
+
+- **Generá sólo lo que el proyecto importa.** No copies `core/` completo.
+  Si el proyecto sólo hace HTTP y limpieza, su paquete compartido (p. ej.
+  `<proyecto>/comun/`) tiene HTTP + limpieza + lo transversal mínimo
+  (historial, calidad, reportes). Nada más "por si acaso".
+- **Anotá la procedencia en un manifiesto.** Un archivo
+  `comun/PROCEDENCIA.md` con una fila por módulo adoptado:
+  `módulo | origen en bcrp-scraping | fecha copiada | adaptaciones`. Esto
+  hace **visible la desincronización** (que es manual y por diseño) y
+  permite re-sincronizar un módulo puntual sin adivinar de dónde salió.
+- **Corré la compuerta de poda antes de cerrar.** Todo módulo del paquete
+  compartido con **0 importadores** se borra. Herramienta reusable:
+  `python herramientas/verificar_poda.py <ruta_paquete>` (lista módulos sin
+  importadores). No cierres una tarea con código muerto adentro.
+
+Detalle completo y ejemplos en
+[`docs/distribucion_proyecto_nuevo.md`](docs/distribucion_proyecto_nuevo.md).
+
 ## Convenciones de código
 
 - **Español** para dominio (`anuncio`, `distrito`, `publicacion_id`).
@@ -132,6 +210,30 @@ agregue fixtures y corra tests del sector.
 - **Violaciones de negocio** → warning en columna `warnings`, no excepción.
 - **Pre-compilar regexes** sólo si están en hot-path. Para una vez
   por corrida no vale la pena.
+
+## HTTP-first y escalado a navegador
+
+Lección del sector empleo (3 de 4 portales sin Selenium): **el navegador es
+la excepción, no el default**. Abrir Chrome es caro, frágil y casi nunca
+necesario. El orden correcto al atacar un portal:
+
+1. **¿Hay API oficial / JSON / XHR?** Consumir directo con `core.http`.
+2. **¿HTML server-side?** `core.http` + parser (BeautifulSoup / regex /
+   JSON-LD embebido `<script type="application/ld+json">`).
+3. **¿SPA que hidrata con JS (Next.js, etc.)?** Muchas veces el estado ya
+   viene en `__NEXT_DATA__` y se lee con `core.redux` SIN navegador. Probá
+   eso antes de Selenium.
+4. **Sólo si lo anterior no alcanza** (render 100% client-side sin blob, o
+   anti-bot confirmado) → `core.browser` (undetected-chromedriver).
+
+`HttpClient` trae un `connect_timeout` corto: un host bloqueado por firewall
+cae en segundos en vez de colgar `read_timeout × retries` (caso real SERVIR).
+
+**Escalado informado, no preventivo.** El scraper empieza liviano y, ante un
+desafío, `core.http.detectar_bloqueo_anti_bot(status, texto)` marca el
+momento exacto. Guardalo en `diagnostico["anti_bot"]`: el reporte de
+mantenimiento lo clasifica como `ANTI_BOT` y recomienda portar la operación
+a `core.browser`. Así el código nuevo no arrastra Selenium "por si acaso".
 
 ## Anti-bot — el problema persistente
 
@@ -225,11 +327,19 @@ sin reproducir la condición:
 * `resultados/degradadas/` — Excel separado con la corrida que NO
   entró al historial.
 
+El reporte abre con una **clasificación automática del fallo**
+(`core.mantenimiento_frontend.clasificar_fallo`): categoría
+(`RED_O_PORTAL_CAIDO` / `ANTI_BOT` / `FRONTEND_LISTADO` / `DETALLE` /
+`COBERTURA_BAJA` / `EXCEPCION`), si es o no bug de código, y la superficie
+EXACTA a tocar. Esto evita que la IA auditora revise todo el proyecto: si la
+categoría es `RED_O_PORTAL_CAIDO`, **no es código — se detiene y avisa**.
+
 ### Protocolo para una IA auditora que recibe un reporte
 
-1. Leer el reporte Markdown completo (`reportes_mantenimiento_frontend/`).
-2. Leer los archivos del sector listados en "Instrucciones para la IA
-   auditora" del reporte.
+1. Leer la **clasificación automática** primero. Si dice "no es bug de
+   código" (red/portal caído), detenerse y reportar al técnico.
+2. Abrir SÓLO los archivos de "Tocar SOLO estos archivos/funciones" del
+   reporte (la superficie de la categoría), más los snapshots HTML.
 3. Abrir los snapshots HTML referenciados — comparar con fixtures
    antiguos si existen.
 4. Identificar causa real: cambio de frontend / Redux / anti-bot /

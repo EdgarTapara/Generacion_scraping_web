@@ -9,14 +9,27 @@ El tiempo real depende de la fuente. Un portal simple puede llegar a primera
 corrida en pocas horas; producción robusta exige fixtures, control de calidad,
 historial, Excel consolidado y validación manual acotada.
 
+## Paso 0 — Compuerta de intake (antes de codear)
+
+Antes de cualquier código, completá la **compuerta de intake** de
+`AGENTS.md` (es regla, no sugerencia):
+
+1. **Entrevista de propósito**: ¿para qué se scrapea?, ¿qué universo?, ¿foto
+   puntual o serie longitudinal? Sin esto no sabés si hace falta historial.
+2. **Exposición de hallazgos**: inspeccioná la fuente y devolvele al usuario
+   qué datos hay de verdad, si hay fecha de publicación (de ahí sale el
+   periodo, nunca de la extracción), volumen/paginación, cada cuánto correr,
+   y si basta `core.http` o exige `core.browser`. Que el usuario confirme.
+
 ## Antes de empezar
 
 - [ ] Definir el **sector** en una palabra (`empleo`, `financiero`,
       `comercio`). Eso es lo que va en `config.SECTOR`.
 - [ ] Definir si la fuente es web, API o documental/PDF. Si es documental,
       leer `docs/fuentes_documentales.md` antes de copiar el template web.
-- [ ] Listar los **portales** objetivo y para cada uno: ¿es SPA Next.js?
-      ¿HTML server-side? ¿tiene API pública? ¿requiere login?
+- [ ] Listar los **portales** objetivo y para cada uno: ¿tiene API pública /
+      JSON / XHR? ¿HTML server-side? ¿es SPA Next.js (con `__NEXT_DATA__`)?
+      ¿requiere login? La respuesta decide HTTP-first vs navegador (Paso 4).
 - [ ] Identificar las **operaciones** internas (alquiler/venta, full-time/
       part-time, etc.) o decidir que el sector no las usa.
 - [ ] Conseguir credenciales / API keys necesarias y agregarlas a
@@ -60,12 +73,25 @@ En `modelos.py`:
 
 ## Paso 4 — Portales
 
+**Primero decidí el transporte (HTTP-first).** No abras un navegador por
+default — es el antipatrón más caro del proyecto. Orden:
+
+1. ¿API / JSON / XHR? → `core.http.HttpClient` directo.
+2. ¿HTML server-side? → `core.http` + parser (BeautifulSoup / JSON-LD).
+3. ¿SPA Next.js? → muchas veces `core.redux.extraer_next_data(html)` ya trae
+   el estado SIN navegador. Probalo antes de Selenium.
+4. Sólo si nada de lo anterior alcanza, o `core.http.detectar_bloqueo_anti_bot`
+   confirma un desafío → `core.browser.BrowserManager`.
+
 En `portal_scrapers/<portal>.py` (NO `portales/` — convención v1):
 
-- [ ] Función pública: `scrape_listados_<portal>(browser, operacion,
+- [ ] Función pública: `scrape_listados_<portal>(cliente_o_browser, operacion,
       num_paginas, diagnostico=None) -> list[dict]`. El diagnóstico se
       construye con `core.calidad.nuevo_diagnostico_scraping(...)` y se
       modifica in-place — el caller lo pasa.
+- [ ] Si usás `core.http`, ante cada respuesta corré
+      `detectar_bloqueo_anti_bot(r.status_code, r.text)` y, si dispara,
+      guardá el motivo en `diagnostico["anti_bot"]` (el reporte lo escala).
 - [ ] Patrón **Redux → DOM → regex → None** en cascada. Si el portal es
       Next.js, primero `core.redux.extraer_next_data(html)` +
       `core.redux.buscar_clave_recursivo(blob, "<clave>")`.
@@ -130,6 +156,13 @@ En `limpieza.py`:
 - [ ] Declarar `CODIGO_POR_PORTAL` en `config.py` apuntando a las
       funciones reales de tus `portal_scrapers/<portal>.py`. El reporte
       lo usa para guiar la reparación.
+- [ ] Mejor aún: declarar `SUPERFICIE_POR_CATEGORIA` en `config.py` y pasarlo
+      como `superficie_por_categoria=...`. El reporte clasifica el fallo
+      (`RED_O_PORTAL_CAIDO` / `ANTI_BOT` / `FRONTEND_LISTADO` / `DETALLE` /
+      `COBERTURA_BAJA`) y apunta a la superficie EXACTA por categoría, así la
+      IA auditora no revisa todo. Ejemplo: `{"LISTADO": ["portal_scrapers/
+      <portal>.py: scrape_listados"], "LIMPIEZA": ["limpieza.py"], "ANTI_BOT":
+      ["usar core.browser para este portal"]}`.
 
 ## Paso 7 — Cache + IA
 

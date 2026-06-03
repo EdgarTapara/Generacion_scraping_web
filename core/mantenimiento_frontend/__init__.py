@@ -16,6 +16,9 @@ El sector declara su propio `_codigo_por_portal` para que el reporte
 apunte a sus archivos (no hay un mapa hardcodeado en `core/`).
 """
 
-from core.mantenimiento_frontend.reporte import generar_reporte_mantenimiento_frontend
+from core.mantenimiento_frontend.reporte import (
+    clasificar_fallo,
+    generar_reporte_mantenimiento_frontend,
+)
 
-__all__ = ["generar_reporte_mantenimiento_frontend"]
+__all__ = ["clasificar_fallo", "generar_reporte_mantenimiento_frontend"]

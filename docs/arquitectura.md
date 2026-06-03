@@ -39,15 +39,16 @@ solo sentido.
 | Módulo | Responsabilidad | API destacada |
 |---|---|---|
 | `core.utils` | Normalización canónica (enlaces, texto, hashing) y generación de `publicacion_id` cross-sector | `normalizar_enlace`, `descripcion_hash`, `publicacion_id`, `asignar_publicacion_id` |
+| `core.http` | **HTTP-first**: cliente `requests` reusable + detección de anti-bot. Primera opción ante un portal | `HttpClient`, `detectar_bloqueo_anti_bot` |
 | `core.redux` | Extracción de `__NEXT_DATA__` y búsqueda recursiva genérica | `extraer_next_data`, `buscar_clave_recursivo`, `extraer_redux_state` |
-| `core.browser` | Singleton Chrome con undetected-chromedriver, anti-bot patches | `BrowserManager`, `buscar_texto`, `buscar_texto_rapido` |
+| `core.browser` | Singleton Chrome con undetected-chromedriver, anti-bot patches. Sólo si HTTP no alcanza | `BrowserManager`, `buscar_texto`, `buscar_texto_rapido` |
 | `core.limpieza` | Helpers puros de parsing genéricos + derivación de periodos | `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa`, `derivar_periodo`, `agregar_columnas_periodo` |
 | `core.modelos` | Schema base de cualquier anuncio web | `AnuncioBase`, `EstadoAnuncio` |
 | `core.extractor_ia` | Cliente DeepSeek + interfaz extensible + cache SQLite | `ExtractorIA`, `DeepSeekExtractor`, `CachePublicaciones` |
 | `core.historial` | SQLite acumulativo con ciclo de vida (nuevo→repetido→desaparecido→baja) | `HistorialSQLite` |
 | `core.calidad` | Compuerta pre-IA con umbrales + señales + diagnóstico estándar | `evaluar_cobertura`, `Veredicto`, `EstadoCalidad`, `nuevo_diagnostico_scraping` |
 | `core.snapshots` | Captura de HTML renderizado por etapa para auditoría | `guardar_snapshot_html` |
-| `core.mantenimiento_frontend` | Generador de reporte Markdown para handoff con IA auditora | `generar_reporte_mantenimiento_frontend` |
+| `core.mantenimiento_frontend` | Reporte Markdown para handoff con IA auditora + clasificación de fallo (categoría + superficie exacta a tocar) | `generar_reporte_mantenimiento_frontend`, `clasificar_fallo` |
 | `core.tipo_cambio` | BCRP DataAPI + cache + conversión auditable | `descargar_tipo_cambio_bcrp`, `aplicar_conversion_tipo_cambio`, `marcar_columnas_estimadas_excel` |
 | `core.nse` | Clasificación por urbanización (lookup, sin ML) | `NSEClassifier`, `NSEConfig`, `asignar_nse_dataframe` |
 | `core.reportes` | Excel acumulativo multi-hoja + formato visual + regeneración desde SQLite | `ExcelAcumulativo`, `Hoja`, `aplicar_formato_hojas`, `leer_anuncios_sqlite`, `regenerar_excel_desde_sqlite` |

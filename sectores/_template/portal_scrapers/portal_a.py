@@ -1,14 +1,25 @@
 """Scraper del portal A — patrón modular validado en v1 inmobiliario.
 
+DECISIÓN PREVIA — transporte HTTP-first (ver AGENTS.md):
+    NO uses navegador por default. Probá en orden:
+      1. API / JSON / XHR → `core.http.HttpClient`.
+      2. HTML server-side → `core.http` + parser (BeautifulSoup / JSON-LD).
+      3. SPA Next.js → `core.redux.extraer_next_data(html)` SIN navegador.
+      4. Sólo si nada alcanza, o `detectar_bloqueo_anti_bot` confirma un
+         desafío → `core.browser.BrowserManager`.
+    Este template muestra el camino con navegador; si tu portal es HTTP,
+    el primer parámetro es un `HttpClient` en vez de un `BrowserManager`.
+
 Convenciones:
-    * Función pública: `scrape_listados_portal_a(browser, operacion, num_paginas,
+    * Función pública: `scrape_listados_portal_a(cliente, operacion, num_paginas,
                                                  diagnostico=None) -> list[dict]`
-      Devuelve los registros crudos. El diagnóstico se modifica in-place
-      (si el caller lo pasó).
-    * Si el portal es SPA Next.js → priorizar `__NEXT_DATA__` con
-      `core.redux.extraer_redux_state`.
-    * En CADA página visitada llamar `guardar_snapshot_html(...)` para que
-      una eventual corrida degradada deje evidencia.
+      donde `cliente` es un `HttpClient` (HTTP-first) o un `BrowserManager`.
+      Devuelve los registros crudos. El diagnóstico se modifica in-place.
+    * Si usás `core.http`: ante cada respuesta corré
+      `detectar_bloqueo_anti_bot(r.status_code, r.text)` y, si dispara,
+      guardá el motivo en `diagnostico["anti_bot"]` (el reporte lo escala).
+    * En CADA página visitada llamar `guardar_snapshot_html(...)` (o guardar
+      el HTML/JSON crudo) para que una corrida degradada deje evidencia.
     * Actualizar contadores del diagnóstico: `paginas_visitadas`,
       `paginas_con_tarjetas`, `tarjetas_totales`, etc.
 """
@@ -22,6 +33,7 @@ from selenium.webdriver.common.by import By
 
 from core.browser import BrowserManager, buscar_texto_rapido
 from core.calidad import nuevo_diagnostico_scraping
+from core.http import HttpClient, detectar_bloqueo_anti_bot  # HTTP-first (preferido)
 from core.redux import extraer_next_data, buscar_clave_recursivo
 from core.snapshots import guardar_snapshot_html
 

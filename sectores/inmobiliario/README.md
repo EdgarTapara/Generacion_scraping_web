@@ -28,7 +28,9 @@ para que **demuestre la metodología vigente**, no una versión antigua.
    (`agregar_columnas_periodo`, `derivar_periodo`).
 4. `main.py` — compuerta de calidad **real** (`core.calidad.evaluar_cobertura`,
    no un gate casero), aislamiento de degradadas + reporte de mantenimiento
-   (`core.mantenimiento_frontend`), IA con cache, NSE (`core.nse`) e
+   con clasificación de fallo (`core.mantenimiento_frontend`,
+   `SUPERFICIE_POR_CATEGORIA`), IA con cache, NSE (`core.nse`), tipo de cambio
+   BCRP (`core.tipo_cambio`: columnas estimadas auditables pintadas en rojo) e
    historial (`core.historial`) + Excel acumulativo (`core.reportes`).
 
 ## Reglas de este directorio

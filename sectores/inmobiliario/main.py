@@ -31,6 +31,11 @@ from core.logging import configurar_logging
 from core.mantenimiento_frontend import generar_reporte_mantenimiento_frontend
 from core.nse import asignar_nse_dataframe, cargar_clasificador_desde_excel
 from core.reportes import ExcelAcumulativo, Hoja
+from core.tipo_cambio import (
+    COLUMNAS_ESTIMADAS,
+    aplicar_conversion_tipo_cambio,
+    marcar_columnas_estimadas_excel,
+)
 
 from sectores.inmobiliario import config
 from sectores.inmobiliario.scraper import scrape_portal_con_diagnostico
@@ -67,9 +72,33 @@ def _exportar_degradada(df, portal, operacion) -> str | None:
     return ruta
 
 
+def _marcar_estimados_tc(ruta_archivo: str, hoja: str = "Consolidado") -> None:
+    """Pinta en rojo las celdas que el tipo de cambio rellenó como estimadas.
+
+    Relee la hoja YA escrita (post append+dedup acumulativo) para que las
+    marcas correspondan a las filas reales del archivo, no al orden de la
+    corrida actual. Idempotente: si una columna estimada no existe, se ignora.
+    """
+    try:
+        hoja_df = pd.read_excel(ruta_archivo, sheet_name=hoja)
+    except Exception as e:  # archivo recién creado o sin la hoja: no es fatal
+        logger.warning("No se pudo releer '%s' para marcar TC: %s", hoja, e)
+        return
+    presentes = [c for c in COLUMNAS_ESTIMADAS if c in hoja_df.columns]
+    if not presentes:
+        return
+    marcas: dict[int, set[str]] = {}
+    for idx, fila in hoja_df.iterrows():
+        marcadas = {c for c in presentes if pd.notna(fila.get(c))}
+        if marcadas:
+            marcas[int(idx)] = marcadas
+    if marcas:
+        marcar_columnas_estimadas_excel(ruta_archivo, {hoja: marcas})
+
+
 def ejecutar_scraping(
     portal: str, operacion: str, num_paginas: int,
-    usar_ia: bool = True, headless: bool = False,
+    usar_ia: bool = True, headless: bool = False, usar_tc: bool = True,
 ) -> tuple[pd.DataFrame | None, dict | None]:
     diagnostico: dict = {}
     df = None
@@ -108,6 +137,7 @@ def ejecutar_scraping(
                 motivos=list(veredicto.motivos),
                 diagnostico=diagnostico, df=df, ruta_degradada=ruta_deg,
                 codigo_por_portal=config.CODIGO_POR_PORTAL,
+                superficie_por_categoria=config.SUPERFICIE_POR_CATEGORIA,
             )
             return df, None
 
@@ -142,6 +172,17 @@ def ejecutar_scraping(
             config.generar_nombre_archivo_historico(portal, operacion),
         )
         cols_diag = [c for c in COLUMNAS_DIAGNOSTICO if c in df.columns]
+        df_consolidado = construir_export_alberth(df)
+
+        # Fase 8a: Tipo de cambio BCRP. Conversión analítica auditable: agrega
+        # columnas estimadas SIN tocar los montos observados. Degrada silencioso
+        # si no hay red ni cache (las columnas quedan vacías).
+        if usar_tc and not df_consolidado.empty:
+            logger.info("FASE 8a: Tipo de cambio BCRP (conversion analitica)...")
+            df_consolidado = aplicar_conversion_tipo_cambio(
+                df_consolidado, ruta_cache=config.RUTA_DB, modo=config.TC_MODO,
+            )
+
         exporter = ExcelAcumulativo(
             ruta_archivo=ruta_archivo,
             hojas=[
@@ -150,9 +191,13 @@ def ejecutar_scraping(
             ],
         )
         exporter.escribir({
-            "Consolidado": construir_export_alberth(df),
+            "Consolidado": df_consolidado,
             "Diagnostico": df[cols_diag],
         })
+
+        # Auditoría visual: las celdas estimadas por TC van en rojo.
+        if usar_tc:
+            _marcar_estimados_tc(ruta_archivo, "Consolidado")
         return df, stats
 
     except Exception:
@@ -164,6 +209,7 @@ def ejecutar_scraping(
             motivos=[f"Excepcion: {tb.splitlines()[-1][:200]}"],
             diagnostico=diagnostico or {}, df=df, excepcion=tb,
             codigo_por_portal=config.CODIGO_POR_PORTAL,
+            superficie_por_categoria=config.SUPERFICIE_POR_CATEGORIA,
         )
         return df, None
 
@@ -182,6 +228,8 @@ def main(argv: list[str] | None = None):
     )
     parser.add_argument("--paginas", type=int, default=config.DEFAULT_NUM_PAGINAS)
     parser.add_argument("--sin-ia", action="store_true")
+    parser.add_argument("--sin-tc", action="store_true",
+                        help="No aplicar conversión de tipo de cambio BCRP.")
     parser.add_argument("--headless", action="store_true")
     args = parser.parse_args(argv)
 
@@ -206,6 +254,7 @@ def main(argv: list[str] | None = None):
             df, _ = ejecutar_scraping(
                 portal, operacion, args.paginas,
                 usar_ia=usar_ia, headless=args.headless,
+                usar_tc=not args.sin_tc,
             )
             if df is not None:
                 total += len(df)

@@ -76,6 +76,7 @@ def ejecutar_scraping(
         #         df=df,
         #         ruta_degradada=ruta_degradada,
         #         codigo_por_portal=config.CODIGO_POR_PORTAL,
+        #         superficie_por_categoria=config.SUPERFICIE_POR_CATEGORIA,
         #     )
         #     return {"estado": veredicto.estado.value, "anuncios": len(df)}
         #
@@ -112,6 +113,7 @@ def ejecutar_scraping(
             df=df,
             excepcion=excepcion_texto,
             codigo_por_portal=getattr(config, "CODIGO_POR_PORTAL", None),
+            superficie_por_categoria=getattr(config, "SUPERFICIE_POR_CATEGORIA", None),
         )
         return {"estado": "excepcion", "anuncios": 0}
 

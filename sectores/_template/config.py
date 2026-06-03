@@ -150,6 +150,17 @@ CODIGO_POR_PORTAL: dict[str, list[str]] = {
     # TODO
 }
 
+# Mejor que CODIGO_POR_PORTAL: superficie EXACTA a tocar según la categoría
+# del fallo (la clasifica `core.mantenimiento_frontend.clasificar_fallo`).
+# El reporte dice "tocar SOLO esto", así la IA auditora no revisa todo.
+SUPERFICIE_POR_CATEGORIA: dict[str, list[str]] = {
+    # "LISTADO": ["portal_scrapers/portal_a.py: scrape_listados_portal_a"],
+    # "DETALLE": ["portal_scrapers/portal_a.py: _extraer_detalle"],
+    # "LIMPIEZA": ["limpieza.py: pipeline_limpieza"],
+    # "ANTI_BOT": ["Escalar este portal a core.browser (undetected-chromedriver)"],
+    # TODO
+}
+
 RUTA_DB = str(CARPETA_SALIDA / f"historial_{SECTOR}.db")
 NOMBRE_ARCHIVO_CONSOLIDADO = f"consolidado_{SECTOR}.xlsx"
 UMBRAL_AUSENCIAS = _env_int("UMBRAL_AUSENCIAS", 3)
