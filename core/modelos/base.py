@@ -20,6 +20,24 @@ class EstadoAnuncio(str, Enum):
     DADO_DE_BAJA = "dado de baja"
 
 
+class RefAnuncio(BaseModel):
+    """Referencia ligera a un anuncio descubierto en un listado.
+
+    Separa el DESCUBRIMIENTO (barato: IDs/URLs visibles en la página de
+    búsqueda) de la EXTRACCIÓN DE DETALLE (cara: una request por anuncio).
+    Permite saltar el detalle de refs ya conocidas y solo pagar el costo por
+    las nuevas. La construye `descubrir_listado` y la consume `extraer_detalle`
+    (ver `core.contratos.PortalScraper`).
+    """
+
+    enlace: str                                  # URL del detalle (sin normalizar aún)
+    fuente: str                                  # portal de origen
+    id_externo: Optional[str] = None             # id del anuncio en el portal
+    operacion: Optional[str] = None              # alcance consultado (región, tipo, etc.)
+
+    model_config = {"frozen": True}
+
+
 class AnuncioBase(BaseModel):
     """Campos presentes en cualquier anuncio web.
 

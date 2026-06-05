@@ -1,6 +1,7 @@
 """Tests de `core.historial.HistorialSQLite`."""
 
 import sqlite3
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -220,6 +221,100 @@ def test_id_fuente_evita_rerun_idempotente(tmp_path):
     assert stats["mutacion_desaparecidos"] is False
     assert df_out["estado_anuncio"].tolist() == ["ya_registrado"]
     assert len(hist.obtener_bitacora()) == 1
+
+
+def test_listado_parcial_no_marca_ausencias(tmp_path):
+    """Un listado parcial (tope de páginas) no prueba que un aviso desapareció."""
+    hist = _hist(tmp_path / "h.db")
+    df1 = pd.DataFrame([
+        {"enlace": "https://x.com/1", "titulo": "A", "precio": 10.0},
+        {"enlace": "https://x.com/2", "titulo": "B", "precio": 20.0},
+    ])
+    hist.registrar_corrida(df1, portal="urbania", operacion="alquiler")
+
+    # Solo vuelve uno, pero el listado vino TRUNCADO: no se marcan ausencias.
+    df2 = pd.DataFrame([{"enlace": "https://x.com/1", "titulo": "A", "precio": 10.0}])
+    _, stats = hist.registrar_corrida(
+        df2, portal="urbania", operacion="alquiler", listado_completo=False
+    )
+    assert stats["desaparecidos"] == 0
+    assert stats["listado_completo"] is False
+    with sqlite3.connect(tmp_path / "h.db") as conn:
+        ausencias = conn.execute(
+            'SELECT "ausencias_consecutivas" FROM "anuncios" WHERE "enlace"=?',
+            ("https://x.com/2",),
+        ).fetchone()[0]
+    assert ausencias == 0
+
+
+def test_listado_completo_se_persiste_en_bitacora(tmp_path):
+    hist = _hist(tmp_path / "h.db")
+    df = pd.DataFrame([{"enlace": "https://x.com/1", "titulo": "A", "precio": 10.0}])
+    hist.registrar_corrida(df, portal="urbania", operacion="alquiler", listado_completo=False)
+    bitacora = hist.obtener_bitacora()
+    assert int(bitacora.iloc[0]["listado_completo"]) == 0
+
+
+def test_guarda_anti_colapso_omite_bajas(tmp_path):
+    """Si una corrida 'completa' encoge drásticamente, no se borra historial."""
+    hist = HistorialSQLite(
+        ruta_db=str(tmp_path / "h.db"),
+        sector="test",
+        campos_snapshot=[("titulo", "TEXT")],
+        umbral_ausencias=1,  # bajaría de inmediato si no hubiese guarda
+        campo_operacion="tipo_operacion",
+        min_base_colapso=10,
+        fraccion_colapso=0.4,
+    )
+    base = pd.DataFrame([
+        {"enlace": f"https://x.com/{i}", "titulo": f"T{i}"} for i in range(20)
+    ])
+    hist.registrar_corrida(base, portal="urbania", operacion="alquiler")
+
+    # Vuelve solo 1 de 20 (5% < 40%): colapso → no se da de baja a nadie.
+    encogida = pd.DataFrame([{"enlace": "https://x.com/0", "titulo": "T0"}])
+    _, stats = hist.registrar_corrida(encogida, portal="urbania", operacion="alquiler")
+    assert stats["colapso_listado"] is True
+    assert stats["dados_de_baja"] == 0
+    with sqlite3.connect(tmp_path / "h.db") as conn:
+        activos = conn.execute('SELECT COUNT(*) FROM "anuncios" WHERE "activo"=1').fetchone()[0]
+    assert activos == 20
+
+
+def test_retiro_por_vejez_en_listado_parcial(tmp_path):
+    """Con dias_vejez>0, un listado parcial retira lo no visto hace mucho."""
+    hist = HistorialSQLite(
+        ruta_db=str(tmp_path / "h.db"),
+        sector="test",
+        campos_snapshot=[("titulo", "TEXT")],
+        campo_operacion="tipo_operacion",
+        dias_vejez=30,
+    )
+    df1 = pd.DataFrame([
+        {"enlace": "https://x.com/viejo", "titulo": "Viejo"},
+        {"enlace": "https://x.com/nuevo", "titulo": "Nuevo"},
+    ])
+    hist.registrar_corrida(df1, portal="urbania", operacion="alquiler", listado_completo=False)
+
+    # Envejecer artificialmente el primero (no visto hace 60 días).
+    with sqlite3.connect(tmp_path / "h.db") as conn:
+        conn.execute(
+            'UPDATE "anuncios" SET "ultima_vez_visto" = ? WHERE "enlace" = ?',
+            ((datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d %H:%M:%S"),
+             "https://x.com/viejo"),
+        )
+
+    # Corrida parcial que solo ve al nuevo: el viejo cae por vejez.
+    df2 = pd.DataFrame([{"enlace": "https://x.com/nuevo", "titulo": "Nuevo"}])
+    _, stats = hist.registrar_corrida(
+        df2, portal="urbania", operacion="alquiler", listado_completo=False
+    )
+    assert stats["dados_de_baja"] == 1
+    with sqlite3.connect(tmp_path / "h.db") as conn:
+        activo_viejo = conn.execute(
+            'SELECT "activo" FROM "anuncios" WHERE "enlace"=?', ("https://x.com/viejo",)
+        ).fetchone()[0]
+    assert activo_viejo == 0
 
 
 def test_force_rerun_de_id_fuente_no_marca_ausencias(tmp_path):

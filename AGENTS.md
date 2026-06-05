@@ -78,10 +78,11 @@ para la API exacta):
 | `core.ingesta` | Ingesta documental: PDF por columnas (`leer_pdf_columnas`) y segmentación por código/sección para diarios, boletines o clasificados impresos |
 | `core.redux` | Parser de `__NEXT_DATA__` y búsqueda recursiva por clave. Para SPAs Next.js / portales hidratados (Navent, etc.) |
 | `core.limpieza` | Helpers puros: `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa`. Periodos: `derivar_periodo` y `agregar_columnas_periodo(df, "fecha_publicacion")` → columnas `anio`/`trimestre` (`YYYY-T{1..4}`)/`mes` (`YYYY-MM`) para agregación BCRP |
-| `core.modelos` | `AnuncioBase` Pydantic + `EstadoAnuncio`. Cada sector hereda |
+| `core.modelos` | `AnuncioBase` Pydantic + `EstadoAnuncio` + `RefAnuncio` (referencia ligera del listado). Cada sector hereda |
+| `core.contratos` | `PortalScraper` (`Protocol`) + `ClientePreferido` (`http`/`browser`/`hybrid`). Formaliza HTTP-first en el código: cada portal declara su transporte y separa `descubrir_listado` (barato) de `extraer_detalle` (caro). Tipado estructural — no exige herencia |
 | `core.extractor_ia` | `DeepSeekExtractor` (cliente OpenAI-compatible con fallback Flash→Pro) + `CachePublicaciones` (SQLite por `publicacion_id + descripcion_hash + campo`) |
-| `core.historial` | `HistorialSQLite` multi-sector con ciclo de vida (nuevo/repetido/desaparecido/dado de baja) y bitácora de corridas |
-| `core.calidad` | `evaluar_cobertura(df, umbrales, señales)` → `Veredicto` con estado OK/advertencia/degradado. Compuerta pre-IA. `nuevo_diagnostico_scraping(portal, op, estrategia)` con shape estándar para todos los sectores |
+| `core.historial` | `HistorialSQLite` multi-sector con ciclo de vida (nuevo/repetido/desaparecido/dado de baja) y bitácora. Seguridad: `listado_completo` (un listado parcial NO marca bajas), guarda anti-colapso (una corrida encogida no borra historial) y retiro por vejez (`dias_vejez`) para listados con tope de páginas |
+| `core.calidad` | `evaluar_cobertura(df, umbrales, señales)` → `Veredicto` (OK/advertencia/degradado), compuerta pre-IA. `nuevo_diagnostico_scraping(...)` shape estándar. `detectar_duplicados(...)` — agrupa candidatos cross-source por similitud como **señal** para revisión humana (NUNCA borra) + `aplicar_resaltado_duplicados` |
 | `core.snapshots` | `guardar_snapshot_html(driver, portal, op, pagina, etapa, carpeta, diagnostico)` — captura HTML renderizado y registra en `diagnostico["snapshots_html"]` |
 | `core.mantenimiento_frontend` | `generar_reporte_mantenimiento_frontend(...)` — Markdown auditable con cobertura, JSON diagnóstico, snapshots, mapa portal→funciones probables. Para corridas degradadas / sin_datos / excepción |
 | `core.tipo_cambio` | BCRP DataAPI + cache SQLite + `aplicar_conversion_tipo_cambio` con columnas estimadas auditables |
@@ -126,6 +127,24 @@ para la API exacta):
   PDFs, diarios o ediciones periódicas usar `id_fuente` en
   `HistorialSQLite.registrar_corrida(...)`. Un rerun no debe inflar
   ediciones ni dar de baja avisos por accidente.
+- **El alcance del ciclo de vida es el EJE DE CONSULTA, nunca un campo del
+  dato.** `campo_operacion` debe ser lo que pediste en la corrida (región
+  consultada, tipo de operación, rubro), no lo que el portal declara dentro
+  del anuncio. Si una corrida de `AREQUIPA` pudiera marcar ausencias de
+  `TACNA`, el alcance está mal definido. Separá "región consultada" de
+  "región observada" cuando difieran (lección de empleo: `region_consulta`
+  ≠ `region` del aviso).
+- **Un listado parcial NO marca ausencias ni bajas.** Si el scraper llegó a
+  un tope de páginas con indicios de más resultados, pasá
+  `listado_completo=False` a `registrar_corrida(...)` y registrá
+  `diagnostico["listado_completo"]=False`. Un universo truncado no prueba que
+  un aviso desapareció. Para esos portales, el retiro se hace por vejez
+  (`dias_vejez`), no por ausencia.
+- **La deduplicación por similitud NUNCA borra automáticamente.** El historial
+  deduplica por `enlace` canónico exacto (automático). La similitud entre
+  fuentes (`core.calidad.detectar_duplicados`) sólo SEÑALA candidatos para
+  que un humano decida. Pintar/agrupar, sí; eliminar filas por similitud sin
+  revisión, jamás.
 - **`scraper.py` del sector es fachada delgada.** Sólo rutea al
   módulo correspondiente en `portal_scrapers/<portal>.py`. Cualquier
   lógica de parseo va en el módulo del portal, NO en la fachada. Los
@@ -235,6 +254,12 @@ momento exacto. Guardalo en `diagnostico["anti_bot"]`: el reporte de
 mantenimiento lo clasifica como `ANTI_BOT` y recomienda portar la operación
 a `core.browser`. Así el código nuevo no arrastra Selenium "por si acaso".
 
+**Declaralo en el contrato.** Cada portal implementa `core.contratos.PortalScraper`
+y fija `cliente_preferido` (`"http"` / `"browser"` / `"hybrid"`). Eso documenta
+la decisión de transporte en el código, no sólo en prosa, y separa
+`descubrir_listado` (barato, devuelve `RefAnuncio`) de `extraer_detalle` (caro)
+para pagar el detalle SÓLO de las refs nuevas.
+
 ## Anti-bot — el problema persistente
 
 Los portales peruanos y latam usan Cloudflare / DataDome / fingerprinting
@@ -296,6 +321,35 @@ de v1.
 **No agregar** un clasificador ML hasta que la base histórica tenga
 suficiente cobertura por categoría (hoy 87% es Alto + Medio Alto;
 entrenar produciría sesgo sistemático).
+
+## Revisión humana y capa limpia (dos capas que no se pisan)
+
+Cuando un sector necesita curación humana (deduplicar entre fuentes, corregir
+campos), separá SIEMPRE la captura cruda de la salida revisada. El scraper
+nunca escribe sobre lo limpio:
+
+- **Capa cruda**: la tabla `anuncios` del historial. Es lo que el scraper
+  escribe y nunca se edita a mano.
+- **Capa revisada**: tablas adicionales en la MISMA base (no SQLite mensuales
+  sueltos): un **ledger de decisiones** (qué hizo el humano: mantener /
+  fusionar / eliminar_duplicado / corregir, con observación y revisor) y una
+  tabla **materializada limpia** por periodo de revisión.
+
+Flujo: (1) generar un Excel `_pre` del periodo con las columnas de control
+(`dup_grupo`, `dup_score`, `decision_revision`, `corregir_*`) y las filas
+candidatas a duplicado resaltadas; (2) el técnico marca decisiones; (3) se
+importan al ledger y se materializa la salida limpia. Reglas:
+
+- El **color es sólo ayuda visual**; la verdad revisable son las columnas
+  (`dup_grupo`, `dup_score`, `decision_revision`), no el resaltado.
+- El **periodo de revisión es operativo** (sale de captura/`ultima_vez_visto`)
+  y NO reemplaza al periodo analítico (que sale de `fecha_publicacion`).
+- El técnico **no borra filas libremente**: marca una acción. El borrado real
+  lo decide la materialización a partir del ledger, que queda auditable.
+
+Esto es metodología, no código de `core/` todavía: las tablas y columnas
+concretas dependen del sector. `core.calidad.detectar_duplicados` aporta la
+señal; el resto (Excel `_pre`, ledger, materialización) lo orquesta el sector.
 
 ## Cuándo NO usar este framework
 

@@ -25,9 +25,9 @@
                        │
 ┌─────────────────────────────────────────────────────────┐
 │  core/                                                   │
-│   - utils, redux, browser, limpieza, modelos            │
-│   - extractor_ia, historial, calidad                    │
-│   - tipo_cambio, nse, reportes, logging                  │
+│   - utils, http, redux, browser, limpieza, modelos       │
+│   - contratos, extractor_ia, historial, calidad          │
+│   - tipo_cambio, nse, reportes, snapshots, logging       │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -43,10 +43,11 @@ solo sentido.
 | `core.redux` | Extracción de `__NEXT_DATA__` y búsqueda recursiva genérica | `extraer_next_data`, `buscar_clave_recursivo`, `extraer_redux_state` |
 | `core.browser` | Singleton Chrome con undetected-chromedriver, anti-bot patches. Sólo si HTTP no alcanza | `BrowserManager`, `buscar_texto`, `buscar_texto_rapido` |
 | `core.limpieza` | Helpers puros de parsing genéricos + derivación de periodos | `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa`, `derivar_periodo`, `agregar_columnas_periodo` |
-| `core.modelos` | Schema base de cualquier anuncio web | `AnuncioBase`, `EstadoAnuncio` |
+| `core.modelos` | Schema base de cualquier anuncio web + referencia ligera de listado | `AnuncioBase`, `EstadoAnuncio`, `RefAnuncio` |
+| `core.contratos` | Contrato tipado de un scraper de portal (HTTP-first explícito) | `PortalScraper` (Protocol), `ClientePreferido` |
 | `core.extractor_ia` | Cliente DeepSeek + interfaz extensible + cache SQLite | `ExtractorIA`, `DeepSeekExtractor`, `CachePublicaciones` |
-| `core.historial` | SQLite acumulativo con ciclo de vida (nuevo→repetido→desaparecido→baja) | `HistorialSQLite` |
-| `core.calidad` | Compuerta pre-IA con umbrales + señales + diagnóstico estándar | `evaluar_cobertura`, `Veredicto`, `EstadoCalidad`, `nuevo_diagnostico_scraping` |
+| `core.historial` | SQLite acumulativo con ciclo de vida (nuevo→repetido→desaparecido→baja) + seguridad de listado (parcial / anti-colapso / vejez) | `HistorialSQLite` |
+| `core.calidad` | Compuerta pre-IA con umbrales + señales + diagnóstico estándar + detección de duplicados cross-source (señal) | `evaluar_cobertura`, `Veredicto`, `EstadoCalidad`, `nuevo_diagnostico_scraping`, `detectar_duplicados`, `aplicar_resaltado_duplicados` |
 | `core.snapshots` | Captura de HTML renderizado por etapa para auditoría | `guardar_snapshot_html` |
 | `core.mantenimiento_frontend` | Reporte Markdown para handoff con IA auditora + clasificación de fallo (categoría + superficie exacta a tocar) | `generar_reporte_mantenimiento_frontend`, `clasificar_fallo` |
 | `core.tipo_cambio` | BCRP DataAPI + cache + conversión auditable | `descargar_tipo_cambio_bcrp`, `aplicar_conversion_tipo_cambio`, `marcar_columnas_estimadas_excel` |
@@ -68,6 +69,17 @@ Implementado por `core.historial.HistorialSQLite.registrar_corrida`:
 La identidad del anuncio NO es el enlace bruto, es el enlace
 **canonicalizado** (sin query, sin fragmento, sin slash final) — usar
 siempre `core.utils.normalizar_enlace`.
+
+**Seguridad de bajas** (parámetros de `HistorialSQLite` / `registrar_corrida`):
+
+| Mecanismo | Cuándo | Efecto |
+|---|---|---|
+| `listado_completo=False` | Listado truncado por tope de páginas | No marca ausencias ni bajas (un universo parcial no prueba desaparición). Se traza en `corridas.listado_completo` |
+| Guarda anti-colapso (`fraccion_colapso`, `min_base_colapso`) | Corrida "completa" trae < N% de los activos previos | Omite las bajas esa corrida (`colapso_listado=True`); evita borrar historial por un hipo del portal |
+| Retiro por vejez (`dias_vejez>0`) | Portales con listado siempre parcial | Da de baja lo no visto en > N días; se auto-sana al reaparecer |
+
+El alcance del ciclo de vida (`campo_operacion`) es el **eje de consulta**
+(región/operación pedida), nunca un campo declarado dentro del dato.
 
 ## Flujo de una corrida
 

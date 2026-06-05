@@ -7,6 +7,10 @@ revisión humana.
 """
 
 from core.calidad.diagnostico import nuevo_diagnostico_scraping
+from core.calidad.duplicados import (
+    aplicar_resaltado_duplicados,
+    detectar_duplicados,
+)
 from core.calidad.evaluador import (
     EstadoCalidad,
     Veredicto,
@@ -20,4 +24,6 @@ __all__ = [
     "evaluar_cobertura",
     "cobertura_por_campo",
     "nuevo_diagnostico_scraping",
+    "detectar_duplicados",
+    "aplicar_resaltado_duplicados",
 ]

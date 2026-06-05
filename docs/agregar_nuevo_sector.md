@@ -105,6 +105,16 @@ En `portal_scrapers/<portal>.py` (NO `portales/` — convención v1):
 - [ ] Actualizar contadores: `paginas_visitadas`, `paginas_con_tarjetas`,
       `tarjetas_totales`, `redux_paginas_ok` / `redux_paginas_fallidas`.
 
+- [ ] **Declará el transporte en el contrato.** Hacé que cada portal cumpla
+      `core.contratos.PortalScraper`: atributos `fuente` y `cliente_preferido`
+      (`"http"`/`"browser"`/`"hybrid"`) y métodos `descubrir_listado(operacion)
+      -> list[RefAnuncio]` (barato) y `extraer_detalle(ref) -> AnuncioBase|None`
+      (caro). Es tipado estructural: no hay que heredar nada. Separar
+      descubrimiento de detalle permite pedir el detalle SÓLO de refs nuevas.
+- [ ] Si el listado puede quedar **truncado** (tope de páginas con indicios de
+      más resultados), registralo en `diagnostico["listado_completo"]=False`
+      para que el historial no marque bajas falsas (Paso 8).
+
 `scraper.py` queda como fachada delgada que sólo rutea al módulo del
 portal según `portal`. No metas lógica de parsing en `scraper.py`.
 
@@ -218,6 +228,15 @@ df, stats = historial.registrar_corrida(df, portal, operacion,
       salvo reproceso manual validado.
 - [ ] Una corrida degradada no debe mutar ausencias/bajas. El default de
       `HistorialSQLite` ya protege este caso; si se fuerza, documentar por que.
+- [ ] **El alcance del ciclo de vida es el eje de consulta.** `campo_operacion`
+      debe ser lo que pediste en la corrida (región/operación), no un campo
+      declarado dentro del aviso. Si "región consultada" ≠ "región observada",
+      usá la consultada como `operacion` y guardá la observada como dato.
+- [ ] **Listado parcial → `listado_completo=False`.** Si el listado quedó
+      truncado, pasalo a `registrar_corrida(...)`: no marcará ausencias. Para
+      portales siempre parciales, configurá `dias_vejez=N` en el constructor
+      para retirar lo no visto en > N días. La guarda anti-colapso
+      (`fraccion_colapso`/`min_base_colapso`) ya viene activa por defecto.
 
 ## Paso 9 — Exportar a Excel
 

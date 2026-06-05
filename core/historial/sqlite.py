@@ -14,7 +14,7 @@ idéntico al de v1 porque es la metodología validada en producción.
 import logging
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -45,6 +45,7 @@ _COLUMNAS_BASE_CORRIDAS: dict[str, str] = {
     "n_nuevos": "INTEGER",
     "n_repetidos": "INTEGER",
     "n_desaparecidos": "INTEGER",
+    "listado_completo": "INTEGER",
     "estado_calidad": "TEXT",
 }
 
@@ -98,6 +99,19 @@ class HistorialSQLite:
         campo_operacion: nombre del campo que agrupa corridas (para
             inmobiliario es `tipo_operacion`; para empleo puede ser
             `rubro` o similar). None si el sector no tiene operaciones.
+        fraccion_colapso: guarda anti-colapso. Si una corrida que se declara
+            COMPLETA trae menos de esta fracción de los activos previos
+            presentes, NO se dan de baja los ausentes esa corrida (evita que
+            un listado encogido por un hipo del portal/API borre historial
+            válido). Solo aplica si la base supera `min_base_colapso`.
+        min_base_colapso: número mínimo de activos previos para que la guarda
+            anti-colapso pueda dispararse (con pocos activos el porcentaje no
+            es confiable).
+        dias_vejez: retiro por vejez para listados PARCIALES. En portales con
+            tope de páginas el mecanismo normal de bajas no puede correr
+            (no se conoce el universo). Si `dias_vejez > 0`, en corridas con
+            `listado_completo=False` se dan de baja los avisos del alcance no
+            vistos en más de N días. 0 = desactivado (default seguro).
     """
 
     def __init__(
@@ -107,11 +121,17 @@ class HistorialSQLite:
         campos_snapshot: list[tuple[str, str | None]],
         umbral_ausencias: int = 3,
         campo_operacion: str | None = None,
+        fraccion_colapso: float = 0.4,
+        min_base_colapso: int = 20,
+        dias_vejez: int = 0,
     ):
         self.ruta_db = ruta_db
         self.sector = sector
         self.umbral_ausencias = umbral_ausencias
         self.campo_operacion = campo_operacion
+        self.fraccion_colapso = fraccion_colapso
+        self.min_base_colapso = min_base_colapso
+        self.dias_vejez = dias_vejez
 
         # Normalizar a pares (nombre, tipo_sql)
         self._snapshot: list[tuple[str, str]] = [
@@ -194,6 +214,7 @@ class HistorialSQLite:
             '"n_nuevos" INTEGER',
             '"n_repetidos" INTEGER',
             '"n_desaparecidos" INTEGER',
+            '"listado_completo" INTEGER DEFAULT 1',
             '"estado_calidad" TEXT DEFAULT \'ok\'',
         ])
         conn.execute(f'CREATE TABLE IF NOT EXISTS "corridas" ({", ".join(defs)})')
@@ -308,6 +329,21 @@ class HistorialSQLite:
 
         self._crear_tabla_corridas(conn)
         self._asegurar_columnas(conn, "corridas", self._columnas_requeridas_corridas())
+        columnas_corridas = {c["name"] for c in self._columnas_tabla(conn, "corridas")}
+        if "listado_completo" in columnas_corridas:
+            conn.execute(
+                'UPDATE "corridas" SET "listado_completo" = 1 '
+                'WHERE "listado_completo" IS NULL'
+            )
+
+    def asegurar_esquema(self) -> None:
+        """Crea/actualiza tablas e índices sin registrar una corrida.
+
+        Útil para migrar/inspeccionar la base (p. ej. en scripts de
+        mantenimiento) sin necesidad de pasar un DataFrame.
+        """
+        with sqlite3.connect(self.ruta_db) as conn:
+            self._inicializar(conn)
 
     def _preparar_corrida(self, df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
         df = df.copy()
@@ -337,8 +373,17 @@ class HistorialSQLite:
         id_fuente: str | None = None,
         permitir_rerun: bool = False,
         mutar_desaparecidos: bool | None = None,
+        listado_completo: bool = True,
     ) -> tuple[pd.DataFrame, dict]:
         """Registra una corrida y marca estados en el DataFrame.
+
+        Args:
+            listado_completo: True si el listado capturó el universo completo
+                del alcance consultado. Si es False (p. ej. se alcanzó un tope
+                de páginas con indicios de más resultados), NO se marcan
+                ausencias ni bajas por el mecanismo normal — un listado parcial
+                no prueba que un aviso desapareció. Si además
+                `self.dias_vejez > 0`, se aplica retiro por vejez.
 
         Retorna:
             (df con columna `estado_anuncio` agregada, dict de stats).
@@ -469,21 +514,39 @@ class HistorialSQLite:
 
             desaparecidos = 0
             dados_de_baja = 0
+            colapso_listado = False
             puede_mutar_ausencias = bool(mutar_desaparecidos) and not es_rerun_fuente
 
-            if puede_mutar_ausencias:
-                where_activos = '"sector" = ? AND "portal" = ? AND "activo" = 1'
-                params_activos: list = [self.sector, portal]
-                if self.campo_operacion and operacion is not None:
-                    where_activos += f" AND {_quote_ident(self.campo_operacion)} = ?"
-                    params_activos.append(operacion)
+            where_scope = '"sector" = ? AND "portal" = ? AND "activo" = 1'
+            params_scope: list = [self.sector, portal]
+            if self.campo_operacion and operacion is not None:
+                where_scope += f" AND {_quote_ident(self.campo_operacion)} = ?"
+                params_scope.append(operacion)
 
+            if puede_mutar_ausencias and listado_completo:
+                # Bajas normales: solo cuando el listado representa el universo
+                # completo del alcance consultado.
                 cur.execute(
                     f'SELECT "clave_registro", "ausencias_consecutivas" '
-                    f'FROM "anuncios" WHERE {where_activos}',
-                    params_activos,
+                    f'FROM "anuncios" WHERE {where_scope}',
+                    params_scope,
                 )
                 activos_db = cur.fetchall()
+
+                # Guarda anti-colapso: si una corrida "completa" trae muchos
+                # menos activos presentes que los conocidos, se OMITEN las bajas
+                # esta vez para no perder historial válido por un hipo del portal.
+                base = len(activos_db)
+                presentes = sum(1 for clave_db, _ in activos_db if clave_db in claves_corrida)
+                if base >= self.min_base_colapso and presentes < self.fraccion_colapso * base:
+                    colapso_listado = True
+                    logger.warning(
+                        "Posible colapso de listado [%s/%s]: solo %d de %d activos "
+                        "presentes (< %.0f%%). Se OMITEN bajas esta corrida para no "
+                        "perder historial valido; revisar el portal.",
+                        portal, operacion, presentes, base, self.fraccion_colapso * 100,
+                    )
+                    activos_db = []
 
                 fecha_baja = datetime.now().strftime("%Y-%m-%d")
 
@@ -512,6 +575,32 @@ class HistorialSQLite:
                         'WHERE "clave_registro" = ?',
                         batch_ausencia,
                     )
+            elif puede_mutar_ausencias and not listado_completo and self.dias_vejez > 0:
+                # Listado PARCIAL (tope de páginas): no se puede saber qué
+                # desapareció, pero sí retirar lo no visto en > N días. Los
+                # avisos presentes acaban de refrescar `ultima_vez_visto`, así
+                # que solo caen los realmente añejos. Se auto-sana al reaparecer.
+                umbral_fecha = (
+                    datetime.now() - timedelta(days=self.dias_vejez)
+                ).strftime("%Y-%m-%d %H:%M:%S")
+                where_vejez = where_scope + ' AND "ultima_vez_visto" < ?'
+                params_vejez = [*params_scope, umbral_fecha]
+                n_vejez = cur.execute(
+                    f'SELECT COUNT(*) FROM "anuncios" WHERE {where_vejez}', params_vejez
+                ).fetchone()[0]
+                if n_vejez:
+                    fecha_baja = datetime.now().strftime("%Y-%m-%d")
+                    cur.execute(
+                        f'UPDATE "anuncios" SET "activo" = 0, "fecha_baja" = ? '
+                        f'WHERE {where_vejez}',
+                        [fecha_baja, *params_vejez],
+                    )
+                    desaparecidos += n_vejez
+                    dados_de_baja += n_vejez
+                    logger.info(
+                        "Retiro por vejez [%s/%s]: %d avisos no vistos en >%d dias.",
+                        portal, operacion, n_vejez, self.dias_vejez,
+                    )
 
             # Bitácora de corrida
             cols_ins = ["fecha", "sector", "portal", "id_fuente"]
@@ -524,9 +613,13 @@ class HistorialSQLite:
                 "n_nuevos",
                 "n_repetidos",
                 "n_desaparecidos",
+                "listado_completo",
                 "estado_calidad",
             ])
-            vals_ins.extend([len(df), nuevos, repetidos, desaparecidos, estado_calidad])
+            vals_ins.extend([
+                len(df), nuevos, repetidos, desaparecidos,
+                int(listado_completo), estado_calidad,
+            ])
             placeholders = ",".join(["?"] * len(cols_ins))
             cur.execute(
                 f'INSERT INTO "corridas" ({",".join(_quote_ident(c) for c in cols_ins)}) '
@@ -544,6 +637,8 @@ class HistorialSQLite:
             "duplicados_descartados": duplicados_descartados,
             "omitido_por_rerun": False,
             "mutacion_desaparecidos": puede_mutar_ausencias,
+            "listado_completo": listado_completo,
+            "colapso_listado": colapso_listado,
             "id_fuente": id_fuente,
         }
         return df, stats

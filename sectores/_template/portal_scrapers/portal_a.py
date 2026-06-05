@@ -33,11 +33,17 @@ from selenium.webdriver.common.by import By
 
 from core.browser import BrowserManager, buscar_texto_rapido
 from core.calidad import nuevo_diagnostico_scraping
+from core.contratos import ClientePreferido  # contrato HTTP-first
 from core.http import HttpClient, detectar_bloqueo_anti_bot  # HTTP-first (preferido)
 from core.redux import extraer_next_data, buscar_clave_recursivo
 from core.snapshots import guardar_snapshot_html
 
 logger = logging.getLogger("scraping")
+
+# Declará el transporte de este portal (ver core.contratos.PortalScraper).
+# "http" es el default sano; subí a "browser"/"hybrid" SÓLO si lo necesitás.
+FUENTE = "portal_a"
+CLIENTE_PREFERIDO: ClientePreferido = "http"
 
 
 def scrape_listados_portal_a(
