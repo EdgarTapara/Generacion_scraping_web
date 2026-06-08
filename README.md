@@ -5,7 +5,7 @@ de Estudios Económicos — BCRP Arequipa.
 
 > **No es una colección de scrapers.** Es el núcleo de patrones y
 > herramientas que cada scraper nuevo (empleo, financiero, comercio…)
-> reutiliza en vez de reinventar. Si vienes a construir un sector nuevo
+> reutiliza en vez de reinventar. Si vienes a construir un scraper nuevo
 > con un agente IA, leé primero [`AGENTS.md`](AGENTS.md).
 
 La brújula correcta es esta: el proyecto busca convertir el aprendizaje de
@@ -69,30 +69,43 @@ bcrp-scraping/
 
 ## Metodologías que aporta cada módulo de `core/`
 
-Nota: para fuentes documentales/PDF, `core.ingesta` aporta lectura por columnas
-y segmentacion por codigo/seccion. Ver `docs/fuentes_documentales.md`.
+Nota: para fuentes documentales/PDF, `core.ingesta` aporta lectura por columnas,
+extracción de tablas y segmentación por código/sección. Ver `docs/fuentes_documentales.md`.
 
 | Módulo | Patrón clave que captura |
 |---|---|
-| `core.browser` | Una sola instancia de Chrome con `undetected_chromedriver`, monkeypatch para `WinError 6` en Windows, override `CHROME_VERSION_MAIN`, delays aleatorios por tipo de página, cierre best-effort de cookies. |
-| `core.ingesta` | Ingesta documental para PDFs/diarios: ordena bloques por columnas y segmenta avisos por codigo/seccion antes del parser del sector. |
+| `core.http` | **HTTP-first** (aprendizaje de empleo: 3/4 portales sin Selenium): `HttpClient` (`requests` + retries + throttle + `connect_timeout` fail-fast en hosts bloqueados) y `detectar_bloqueo_anti_bot(status, texto)`. Es la primera opción; el navegador es la excepción. |
+| `core.browser` | Una sola instancia de Chrome con `undetected_chromedriver`, monkeypatch para `WinError 6` en Windows, override `CHROME_VERSION_MAIN`, delays aleatorios por tipo de página, cierre best-effort de cookies. **Sólo si el portal lo exige.** |
+| `core.ingesta` | Ingesta documental para PDFs/diarios: lectura por columnas + **extracción de tablas** (lattice con bordes y stream por geometría de palabras para tablas sin bordes) + segmentación por código/sección antes del parser. |
 | `core.redux` | Parser de `__NEXT_DATA__` + búsqueda recursiva por clave. Permite que cualquier scraper de un SPA Next.js (Navent, etc.) priorice el blob JSON hidratado sobre el DOM. |
 | `core.utils` | `normalizar_enlace` (única implementación canónica del proyecto), `descripcion_hash` (normaliza ruido antes de hashear), `publicacion_id` (identificador estable cross-corridas). |
+| `core.modelos` · `core.contratos` | `AnuncioBase` + `RefAnuncio` (referencia ligera de listado) + el `Protocol` `PortalScraper` con `ClientePreferido` (`http`/`browser`/`hybrid`): cada portal declara su transporte y separa `descubrir_listado` (barato) de `extraer_detalle` (caro). |
 | `core.extractor_ia` | Cliente DeepSeek con fallback Flash→Pro ante 429/503/timeout, y `CachePublicaciones` SQLite indexada por `(publicacion_id, descripcion_hash, campo)` — no se quema un token cuando el portal reedita un anuncio sin cambiar contenido. |
-| `core.historial` | SQLite acumulativo multi-sector. Detecta nuevos / repetidos / desaparecidos / bajas con `ausencias_consecutivas`. Identidad por `sector + portal + operacion + enlace_canonico`. |
-| `core.calidad` | Compuerta pre-IA con umbrales por campo + señales instrumentales. Una corrida con cobertura insuficiente NO actualiza el historial — se desvía a `degradadas/` para revisión. |
+| `core.historial` | SQLite acumulativo multi-sector con ciclo de vida (nuevo / repetido / desaparecido / baja). **Seguridad de bajas (de empleo):** un listado parcial (`listado_completo=False`) NO marca ausencias; guarda anti-colapso (una corrida encogida no borra historial); retiro por vejez (`dias_vejez`) para portales siempre parciales. |
+| `core.calidad` | Compuerta pre-IA con umbrales + señales: una corrida con cobertura insuficiente NO actualiza el historial (va a `degradadas/`). Además `detectar_duplicados` agrupa candidatos cross-source por similitud como **señal** para revisión humana — nunca borra. |
+| `core.mantenimiento_frontend` · `core.snapshots` | Evidencia auditable cuando un portal cambia su HTML: reporte Markdown con `clasificar_fallo` (categoría + superficie exacta a tocar) + snapshots HTML por etapa. Una IA auditora repara sin reproducir la corrida. |
 | `core.tipo_cambio` | BCRP DataAPI con cache SQLite. Aplica conversión USD↔PEN auditable: agrega columnas `Monto S/ estimado TC`, `TC fecha usada`, `TC compra/venta`, `TC fuente`, `TC regla`. NO sobrescribe montos observados. |
 | `core.nse` | Clasificación por lookup `(distrito, urbanización) → NSE`. Sin ML por sesgo del dataset (87% Alto+Medio Alto). Auditable: cada match expone método y confianza. |
 | `core.reportes` | `ExcelAcumulativo` multi-hoja con dedup por hoja (claves independientes), preservación de hojas no tocadas, y `aplicar_formato_hojas` para pulido visual BCRP. |
+| `core.poda` | Compuerta de higiene: detecta módulos `.py` sin importadores en un paquete copiado (evita arrastrar código muerto al adoptar metodología en un proyecto standalone). |
 
 ## Decisiones de diseño que NO son negociables
 
+- **HTTP-first.** El navegador es la excepción, no el default. Orden:
+  API/JSON/XHR → HTML server-side → `__NEXT_DATA__` sin navegador → y sólo
+  si nada alcanza, Chrome. (Lección de empleo: 3/4 portales sin Selenium.)
 - **Lecturas son cascada**: Redux → DOM → regex → None. Nunca asumir
   una sola fuente.
 - **`normalizar_enlace` es única.** Historial SQLite y cache IA deben
   comparar la misma forma canónica.
 - **Compuerta de calidad antes de IA.** No se queman tokens sobre datos
   rotos; degradadas van a carpeta aparte.
+- **Un listado parcial NO marca ausencias ni bajas.** Un universo truncado
+  no prueba que un aviso desapareció; el retiro se hace por vejez.
+- **La deduplicación por similitud NUNCA borra sola.** El dedup exacto por
+  enlace es automático; la similitud cross-source sólo SEÑALA para revisión humana.
+- **El alcance del ciclo de vida es el eje de consulta**, nunca un campo
+  declarado dentro del dato (lección de empleo: `region_consulta` ≠ `region`).
 - **Conversiones de TC son auditables, no destructivas.** Columnas en
   rojo (#C00000) declaran lo imputado.
 - **NSE es lookup, no ML.** Mientras la base esté desbalanceada.
@@ -117,7 +130,7 @@ propias carpetas y traen de `core/` sólo lo que importan — ver
 PYTHONPATH='.codex-pydeps;.' python -m pytest tests -q
 ```
 
-Resultado auditado el 2026-05-30: `110 passed`. Sin llamadas a red ni Chrome
+Resultado auditado el 2026-06-08: `104 passed`. Sin llamadas a red ni Chrome
 real — todo con fixtures/mocks. Si no usas `.codex-pydeps`, instala el paquete
 con extras de desarrollo antes de correr tests.
 
@@ -136,17 +149,20 @@ Requisitos:
 ## Roadmap
 
 - **Sprint 1** ✓ Núcleo `core/` + sector inmobiliario de referencia.
-- **Sprint 2 (extracción metodológica)** parcialmente completo: migración de aprendizajes de v1
-  productivo: `core.utils`, `core.redux`, `core.extractor_ia.cache`,
-  `core.calidad`, `core.tipo_cambio`, `core.nse`, formato auditable.
-  `AGENTS.md` + scaffold + checklist + fuentes documentales. Falta endurecer
-  el template como CLI funcional mínimo o declararlo definitivamente como
-  scaffold guiado.
-- **Sprint 3** Sector empleo (Empleos Perú + Computrabajo + SERVIR)
-  como segundo consumidor — disparará los nuevos patrones que merezcan
-  subir a `core/`.
-- **Sprint 4** Empaquetar la metodología como skill/agente reutilizable para
-  distintos proveedores IA.
+- **Sprint 2 (extracción metodológica de v1)** ✓ `core.utils`, `core.redux`,
+  `core.extractor_ia.cache`, `core.calidad`, `core.tipo_cambio`, `core.nse`,
+  formato auditable, `AGENTS.md` + scaffold + checklist + fuentes documentales.
+- **Sprint 3 (extracción metodológica de empleo)** ✓ El sector empleo, como
+  segundo consumidor real, disparó patrones que subieron a `core/`: **HTTP-first**
+  (`core.http`), **contrato de portal** (`core.contratos`), **seguridad de bajas**
+  en el historial (listado parcial / anti-colapso / vejez), **clasificación de fallo**
+  (`core.mantenimiento_frontend`) y **duplicados-señal** (`core.calidad`).
+- **v0.1 (reestructuración, 2026-06-08)** ✓ Metodología pura: se elimina el
+  alojamiento de scrapers, `plantilla_proyecto/` queda como estructura estándar,
+  `core.poda`, extracción de **tablas PDF** (`core.ingesta`), `guia.html` y skill
+  del repo para activar el contrato en cualquier agente.
+- **Próximo** Primer consumidor productivo importando/copiando `core/` end-to-end
+  (dogfooding) y endurecimiento de `core.ingesta` con PDFs reales de tablas complejas.
 
 ## Para agentes IA
 
