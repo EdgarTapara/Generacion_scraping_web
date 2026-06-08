@@ -15,9 +15,9 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  sectores/<x>/                                           │
-│   - config / modelos / scraper / portales / limpieza     │
-│   - extractor_ia (sector-specific prompt + cache cableado)│
+│  <mi_proyecto>/  (copia de plantilla_proyecto/)          │
+│   - config / modelos / scraper / portal_scrapers / limpieza│
+│   - extractor_ia (prompt propio + cache cableado)         │
 │   - main (CLI orquestador)                                │
 └─────────────────────────────────────────────────────────┘
                        ▲
@@ -25,14 +25,14 @@
                        │
 ┌─────────────────────────────────────────────────────────┐
 │  core/                                                   │
-│   - utils, http, redux, browser, limpieza, modelos       │
-│   - contratos, extractor_ia, historial, calidad          │
-│   - tipo_cambio, nse, reportes, snapshots, logging       │
+│   - utils, http, ingesta, redux, browser, limpieza       │
+│   - modelos, contratos, extractor_ia, historial, calidad │
+│   - tipo_cambio, nse, reportes, snapshots, poda, logging │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Regla**: `core/` nunca importa de `sectores/`. La dirección es de un
-solo sentido.
+**Regla**: `core/` nunca importa del paquete del proyecto. La dirección es
+de un solo sentido: el proyecto importa `core/`, nunca al revés.
 
 ## Módulos `core/` y para qué sirven
 
@@ -40,6 +40,7 @@ solo sentido.
 |---|---|---|
 | `core.utils` | Normalización canónica (enlaces, texto, hashing) y generación de `publicacion_id` cross-sector | `normalizar_enlace`, `descripcion_hash`, `publicacion_id`, `asignar_publicacion_id` |
 | `core.http` | **HTTP-first**: cliente `requests` reusable + detección de anti-bot. Primera opción ante un portal | `HttpClient`, `detectar_bloqueo_anti_bot` |
+| `core.ingesta` | Ingesta documental de PDF: lectura por columnas, extracción de tablas y segmentación por código/sección | `leer_pdf_columnas`, `extraer_tablas_pdf`, `segmentar_documento` |
 | `core.redux` | Extracción de `__NEXT_DATA__` y búsqueda recursiva genérica | `extraer_next_data`, `buscar_clave_recursivo`, `extraer_redux_state` |
 | `core.browser` | Singleton Chrome con undetected-chromedriver, anti-bot patches. Sólo si HTTP no alcanza | `BrowserManager`, `buscar_texto`, `buscar_texto_rapido` |
 | `core.limpieza` | Helpers puros de parsing genéricos + derivación de periodos | `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa`, `derivar_periodo`, `agregar_columnas_periodo` |
@@ -53,6 +54,7 @@ solo sentido.
 | `core.tipo_cambio` | BCRP DataAPI + cache + conversión auditable | `descargar_tipo_cambio_bcrp`, `aplicar_conversion_tipo_cambio`, `marcar_columnas_estimadas_excel` |
 | `core.nse` | Clasificación por urbanización (lookup, sin ML) | `NSEClassifier`, `NSEConfig`, `asignar_nse_dataframe` |
 | `core.reportes` | Excel acumulativo multi-hoja + formato visual + regeneración desde SQLite | `ExcelAcumulativo`, `Hoja`, `aplicar_formato_hojas`, `leer_anuncios_sqlite`, `regenerar_excel_desde_sqlite` |
+| `core.poda` | Compuerta de higiene: detecta módulos `.py` sin importadores en un paquete copiado (evita código muerto al adoptar metodología) | `modulos_huerfanos`, `python -m core.poda` |
 | `core.logging` | Logging estructurado con archivo por corrida | `configurar_logging(carpeta_logs)` |
 
 ## Ciclo de vida del anuncio

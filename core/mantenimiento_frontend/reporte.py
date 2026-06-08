@@ -431,7 +431,7 @@ def generar_reporte_mantenimiento_frontend(
         "6. Agregar o actualizar una prueba de regresion con fixture local "
         "antes de correr el portal real.",
         "7. Ejecutar tests del sector. Si pasa, corrida acotada de validacion: "
-        "`python -m sectores.<sector>.main --portal <portal> --paginas 1 --headless`.",
+        "`python -m <mi_proyecto>.main --portal <portal> --paginas 1 --headless`.",
         "8. Documentar el cambio en este reporte y verificar que el historico "
         "longitudinal NO recibio datos contaminados.",
     ])

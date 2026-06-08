@@ -54,7 +54,7 @@ declara.
 ### 3. Corré la compuerta de poda antes de cerrar
 
 ```bash
-python herramientas/verificar_poda.py <proyecto>/comun
+python -m core.poda <proyecto>/comun
 ```
 
 Lista los módulos del paquete con **0 importadores**. Revisá cada uno: si de
@@ -79,6 +79,6 @@ proyectos consumiendo `core/`, reconsiderar el paquete instalable.
 
 - [ ] Cada módulo de `comun/` tiene al menos un importador real.
 - [ ] `comun/PROCEDENCIA.md` existe y está al día.
-- [ ] `python herramientas/verificar_poda.py <proyecto>/comun` sale limpio.
+- [ ] `python -m core.poda <proyecto>/comun` sale limpio.
 - [ ] No se copió `core/browser` si el proyecto no usa navegador (HTTP-first).
 - [ ] Los tests del proyecto corren sin red ni Chrome.

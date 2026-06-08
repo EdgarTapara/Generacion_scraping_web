@@ -8,8 +8,8 @@ Esta herramienta escanea un paquete compartido (p. ej. `<proyecto>/comun/`)
 y lista los módulos `.py` que **nadie importa** dentro del proyecto. Es
 heurística por análisis de imports (AST), sector-agnóstica y sin red.
 
-Uso:
-    python herramientas/verificar_poda.py <ruta_paquete> [--proyecto <raiz>]
+Uso como módulo:
+    python -m core.poda <ruta_paquete> [--proyecto <raiz>]
 
 Salida: lista de módulos huérfanos. Exit code 1 si hay alguno (sirve como
 compuerta en CI o al cerrar una tarea: "no dejes código muerto adentro").

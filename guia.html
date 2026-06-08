@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bcrp-scraping — Guía del proyecto</title>
+<style>
+  :root{
+    --azul:#0b3d6b; --azul2:#155a9c; --acento:#c8961e; --rojo:#c00000;
+    --tinta:#1c2530; --gris:#5b6672; --linea:#e4e8ee; --fondo:#f6f8fb;
+    --verde:#1f7a4d; --code:#0d2233;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--tinta);background:var(--fondo);line-height:1.6}
+  a{color:var(--azul2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  header.hero{background:linear-gradient(135deg,var(--azul),var(--azul2));color:#fff;
+    padding:48px 32px 40px}
+  header.hero .wrap{max-width:1060px;margin:0 auto}
+  .tag{display:inline-block;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);
+    padding:4px 12px;border-radius:999px;font-size:13px;letter-spacing:.04em;margin-bottom:16px}
+  header.hero h1{margin:0 0 8px;font-size:38px;font-weight:700;letter-spacing:-.01em}
+  header.hero p{margin:0;font-size:18px;max-width:720px;color:#dce8f5}
+  header.hero .v{margin-top:18px;font-size:13px;color:#bcd2ea}
+  .layout{max-width:1060px;margin:0 auto;display:flex;gap:32px;padding:32px}
+  nav.toc{position:sticky;top:24px;align-self:flex-start;min-width:210px;font-size:14px}
+  nav.toc h4{margin:0 0 8px;color:var(--gris);text-transform:uppercase;font-size:11px;letter-spacing:.08em}
+  nav.toc a{display:block;padding:5px 10px;border-radius:6px;color:var(--tinta)}
+  nav.toc a:hover{background:#eaeef4;text-decoration:none}
+  main{flex:1;min-width:0}
+  section{background:#fff;border:1px solid var(--linea);border-radius:12px;padding:26px 28px;margin-bottom:22px;
+    box-shadow:0 1px 2px rgba(16,40,70,.04)}
+  section h2{margin:0 0 14px;font-size:23px;color:var(--azul);border-bottom:2px solid var(--linea);padding-bottom:10px}
+  section h3{font-size:16px;color:var(--azul2);margin:20px 0 6px}
+  p{margin:0 0 12px}
+  .lead{font-size:16px;color:#33414f}
+  code{background:#eef2f7;color:var(--code);padding:1px 6px;border-radius:5px;font-size:13.5px;
+    font-family:"SF Mono",Consolas,"Liberation Mono",monospace}
+  pre{background:var(--code);color:#e7eef6;padding:16px 18px;border-radius:10px;overflow-x:auto;font-size:13px;
+    font-family:"SF Mono",Consolas,"Liberation Mono",monospace;line-height:1.55}
+  pre .c{color:#7fa6c9}
+  pre .k{color:#f0b86c}
+  ul,ol{margin:0 0 12px;padding-left:22px}
+  li{margin:4px 0}
+  table{border-collapse:collapse;width:100%;font-size:14px;margin:6px 0 4px}
+  th,td{border:1px solid var(--linea);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:#eef3f8;color:var(--azul);font-weight:600}
+  tr:nth-child(even) td{background:#fafbfd}
+  .pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;font-weight:600}
+  .pill.core{background:#e6f0fa;color:var(--azul2)}
+  .pill.regla{background:#fdeaea;color:var(--rojo)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:8px 0}
+  .card{border:1px solid var(--linea);border-radius:10px;padding:14px 16px;background:#fcfdff}
+  .card h4{margin:0 0 6px;color:var(--azul);font-size:15px}
+  .card p{margin:0;font-size:13.5px;color:var(--gris)}
+  .callout{border-left:4px solid var(--acento);background:#fff8ea;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+  .callout.warn{border-color:var(--rojo);background:#fdf0f0}
+  .callout.ok{border-color:var(--verde);background:#eef8f2}
+  .mono-tree{font-family:"SF Mono",Consolas,monospace;font-size:13px;background:var(--code);color:#dde7f1;
+    padding:18px;border-radius:10px;white-space:pre;overflow-x:auto;line-height:1.5}
+  footer{max-width:1060px;margin:0 auto;padding:24px 32px 48px;color:var(--gris);font-size:13px}
+  @media(max-width:820px){.layout{flex-direction:column}nav.toc{position:static;min-width:0}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="tag">BCRP · Estudios Económicos · Arequipa</span>
+    <h1>bcrp-scraping</h1>
+    <p>Librería de <strong>metodologías</strong> de web scraping reutilizables. No es una
+       colección de scrapers: es el núcleo de patrones validados que cada nuevo scraper
+       (inmobiliario, empleo, diarios/PDF, APIs) reutiliza en vez de reinventar.</p>
+    <div class="v">Versión v0.1 · documento de presentación · generado para revisión institucional</div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc">
+    <h4>Contenido</h4>
+    <a href="#objetivo">1. Objetivo</a>
+    <a href="#como">2. Cómo funciona</a>
+    <a href="#estructura">3. Estructura</a>
+    <a href="#core">4. Módulos de core</a>
+    <a href="#flujo">5. Flujo de una corrida</a>
+    <a href="#nuevo">6. Crear un scraper</a>
+    <a href="#reglas">7. Reglas duras</a>
+    <a href="#agentes">8. Para agentes IA</a>
+    <a href="#ejemplos">9. Ejemplos</a>
+  </nav>
+
+  <main>
+    <section id="objetivo">
+      <h2>1. Objetivo</h2>
+      <p class="lead">Convertir el aprendizaje real de los proyectos de scraping del BCRP en
+        una <strong>metodología reutilizable para agentes IA</strong> (Claude, Codex, Antigravity,
+        Gemini…), de modo que construir un scraper nuevo no empiece de cero ni reinvente patrones
+        ya resueltos.</p>
+      <div class="grid">
+        <div class="card"><h4>Reutilizar, no reinventar</h4><p>Anti-bot, historial, calidad,
+          cache de IA, formato auditable: ya están en <code>core/</code>.</p></div>
+        <div class="card"><h4>Trazabilidad institucional</h4><p>No se optimiza para "que corra una vez",
+          sino para memoria histórica, evidencia auditable y reproducibilidad.</p></div>
+        <div class="card"><h4>Estándar de estructura</h4><p>Todo scraper nuevo se ve igual:
+          misma cantidad y tipo de archivos, copiando una plantilla.</p></div>
+        <div class="card"><h4>Contrato cross-agente</h4><p><code>AGENTS.md</code> es el contrato que
+          cualquier modelo de IA lee antes de escribir código.</p></div>
+      </div>
+    </section>
+
+    <section id="como">
+      <h2>2. Cómo funciona</h2>
+      <p>El repositorio es <strong>metodología pura</strong> — no contiene scrapers de producción.
+        Tiene dos piezas:</p>
+      <ul>
+        <li><span class="pill core">core/</span> &nbsp;Patrones reutilizables y sector-agnósticos.
+          Se cambian con cuidado. <em>Nunca</em> importan del código de un proyecto.</li>
+        <li><span class="pill core">plantilla_proyecto/</span> &nbsp;La estructura <strong>estándar</strong>
+          de un scraper nuevo. Se copia a <code>&lt;mi_proyecto&gt;/</code> y se rellena.</li>
+      </ul>
+      <p>Cada scraper real (inmobiliario, empleo, diarios/PDF) vive en su propia carpeta/repo,
+        copia la plantilla y trae de <code>core/</code> <strong>sólo lo que importa</strong>
+        (generación selectiva + poda, para no arrastrar código muerto).</p>
+      <div class="callout"><strong>HTTP-first.</strong> El navegador es la excepción, no el default.
+        Orden: API/JSON/XHR → HTML server-side → <code>__NEXT_DATA__</code> sin navegador →
+        y sólo si nada alcanza, Chrome (undetected-chromedriver).</div>
+    </section>
+
+    <section id="estructura">
+      <h2>3. Estructura del repositorio</h2>
+      <div class="mono-tree">bcrp-scraping/
+├── AGENTS.md              ← contrato para agentes IA
+├── README.md              ← entrada para humanos
+├── guia.html              ← esta guía
+├── core/                  ← núcleo reutilizable (metodología)
+│   ├── utils/  http/  ingesta/  redux/  browser/  limpieza/
+│   ├── modelos/  contratos.py  extractor_ia/  historial/
+│   ├── calidad/  mantenimiento_frontend/  snapshots/
+│   ├── tipo_cambio/  nse/  reportes/  poda.py  logging/
+├── plantilla_proyecto/    ← estructura ESTÁNDAR de un scraper nuevo
+│   ├── config.py  modelos.py  limpieza.py  scraper.py
+│   ├── extractor_ia.py  main.py
+│   └── portal_scrapers/  (portal_a.py, common.py)
+├── docs/                  ← guías de metodología (.md)
+└── tests/core/            ← tests del núcleo (sin red ni Chrome)</div>
+      <h3>El estándar de un proyecto</h3>
+      <p>Copiar <code>plantilla_proyecto/</code> produce siempre el mismo conjunto de archivos
+        (imports internos <strong>relativos</strong>, así que renombrar el paquete no rompe nada).
+        Esa uniformidad es deliberada: cualquiera —humano o IA— encuentra las cosas en el mismo lugar.</p>
+    </section>
+
+    <section id="core">
+      <h2>4. Módulos de <code>core/</code></h2>
+      <table>
+        <tr><th>Módulo</th><th>Qué aporta</th></tr>
+        <tr><td><code>core.http</code></td><td>HTTP-first: <code>HttpClient</code> (requests + retries + throttle) y detección de anti-bot. Primera opción ante un portal.</td></tr>
+        <tr><td><code>core.ingesta</code></td><td>PDF: lectura por columnas, <strong>extracción de tablas</strong> (con y sin bordes) y segmentación documental por código/sección.</td></tr>
+        <tr><td><code>core.redux</code></td><td>Parser de <code>__NEXT_DATA__</code> + búsqueda recursiva para SPAs Next.js, sin navegador.</td></tr>
+        <tr><td><code>core.browser</code></td><td><code>BrowserManager</code> con undetected-chromedriver y parches anti-bot. Sólo si el portal lo exige.</td></tr>
+        <tr><td><code>core.modelos</code> · <code>core.contratos</code></td><td><code>AnuncioBase</code>, <code>RefAnuncio</code> y el <code>Protocol</code> <code>PortalScraper</code> que declara el transporte (http/browser/hybrid).</td></tr>
+        <tr><td><code>core.extractor_ia</code></td><td><code>DeepSeekExtractor</code> + cache SQLite por <code>(publicacion_id, descripcion_hash, campo)</code>: no se quema un token al reprocesar lo mismo.</td></tr>
+        <tr><td><code>core.historial</code></td><td>SQLite acumulativo con ciclo de vida (nuevo/repetido/desaparecido/baja) + seguridad: listado parcial, anti-colapso y retiro por vejez.</td></tr>
+        <tr><td><code>core.calidad</code></td><td>Compuerta pre-IA (umbrales + señales) + detección de duplicados cross-source como <em>señal</em> (nunca borra).</td></tr>
+        <tr><td><code>core.mantenimiento_frontend</code> · <code>core.snapshots</code></td><td>Evidencia auditable cuando un portal cambia su HTML: reporte Markdown clasificado + snapshots por etapa.</td></tr>
+        <tr><td><code>core.tipo_cambio</code></td><td>BCRP DataAPI + cache + conversión auditable (columnas estimadas en rojo, no destructiva).</td></tr>
+        <tr><td><code>core.nse</code></td><td>Clasificación NSE por lookup (sin ML mientras la base esté desbalanceada).</td></tr>
+        <tr><td><code>core.reportes</code></td><td>Excel acumulativo multi-hoja con dedup + formato visual BCRP, regenerable desde SQLite.</td></tr>
+        <tr><td><code>core.poda</code></td><td>Compuerta de higiene: detecta módulos copiados sin importadores (evita código muerto).</td></tr>
+        <tr><td><code>core.utils</code> · <code>core.logging</code></td><td><code>normalizar_enlace</code> canónico, hashes, <code>publicacion_id</code>; logging por corrida.</td></tr>
+      </table>
+    </section>
+
+    <section id="flujo">
+      <h2>5. Flujo de una corrida</h2>
+      <div class="mono-tree">CLI → scraper (rutea al portal_scraper: Redux → DOM → regex)
+    → limpieza (helpers de core.limpieza + columnas de periodo)
+    → core.calidad.evaluar_cobertura
+         │ DEGRADADO → degradadas/ + reporte de mantenimiento (NO continúa)
+         ▼ OK / ADVERTENCIA
+    → extractor_ia (cache → fallback regex → DeepSeek si falta)
+    → historial.registrar_corrida (ciclo de vida + seguridad de bajas)
+    → Excel acumulativo (Consolidado + Diagnostico)
+    → [opcional] tipo de cambio + formato visual</div>
+      <div class="callout ok"><strong>SQLite es la fuente de verdad longitudinal.</strong>
+        El Excel es una vista cómoda: si se pierde, se regenera desde SQLite sin re-scrapear.</div>
+    </section>
+
+    <section id="nuevo">
+      <h2>6. Crear un scraper nuevo</h2>
+      <pre><span class="c"># 1. Copiar la plantilla estándar y renombrarla</span>
+cp -r plantilla_proyecto mi_proyecto
+
+<span class="c"># 2. Rellenar config.py, modelos.py, portal_scrapers/...</span>
+<span class="c">#    (imports internos relativos: nada que reconectar)</span>
+
+<span class="c"># 3. Corrida acotada, primero sin IA</span>
+python -m mi_proyecto.main --portal portal_a --paginas 1 --sin-ia</pre>
+      <p>El paso a paso completo está en <code>docs/agregar_nuevo_sector.md</code>. Antes de escribir
+        código, el agente pasa la <strong>compuerta de intake</strong>: para qué sirve el scraping,
+        qué universo, qué horizonte, y qué datos hay <em>realmente</em> en la fuente.</p>
+    </section>
+
+    <section id="reglas">
+      <h2>7. Reglas que no se rompen</h2>
+      <table>
+        <tr><th>Regla</th><th>Por qué</th></tr>
+        <tr><td><span class="pill regla">core nunca importa del proyecto</span></td><td>Dependencia de un solo sentido. El proyecto importa <code>core/</code>, jamás al revés.</td></tr>
+        <tr><td><span class="pill regla">Calidad antes de IA</span></td><td>Datos degradados no contaminan el historial ni queman tokens; van a <code>degradadas/</code>.</td></tr>
+        <tr><td><span class="pill regla">normalizar_enlace es único</span></td><td>Historial y cache comparan la misma forma canónica; si difieren, no hay hit.</td></tr>
+        <tr><td><span class="pill regla">Lectura en cascada</span></td><td>Redux → DOM → regex → None. Nunca asumir una sola fuente.</td></tr>
+        <tr><td><span class="pill regla">Listado parcial no marca bajas</span></td><td>Un universo truncado no prueba que un aviso desapareció.</td></tr>
+        <tr><td><span class="pill regla">Similitud nunca borra sola</span></td><td>Dedup exacto por enlace es automático; la similitud sólo SEÑALA para revisión humana.</td></tr>
+        <tr><td><span class="pill regla">TC no sobrescribe lo observado</span></td><td>Sólo agrega columnas estimadas auditables (en rojo).</td></tr>
+        <tr><td><span class="pill regla">IA es adaptador, no metodología</span></td><td>Cambiar de proveedor cambia el adaptador, no las reglas de negocio.</td></tr>
+      </table>
+    </section>
+
+    <section id="agentes">
+      <h2>8. Para agentes IA</h2>
+      <p>Ante cualquier pedido de scraping del BCRP, el agente —Claude, Codex, Antigravity, Gemini—
+        <strong>primero lee <code>AGENTS.md</code> y <code>core/</code></strong> antes de escribir código.
+        No arranca de cero ni reinventa un patrón que ya vive en <code>core/</code>.</p>
+      <ul>
+        <li>Convención de capas y cuándo subir un patrón a <code>core/</code> (regla del "aparece en ≥2 proyectos").</li>
+        <li>Compuerta de intake (propósito + hallazgos) antes de construir.</li>
+        <li>Mantenimiento ante cambios de frontend: reporte auditable + snapshots para una IA auditora.</li>
+        <li>Anti-patrones: abrir el navegador "por las dudas", parsear strings cuando hay JSON, mutar el historial con corridas degradadas.</li>
+      </ul>
+    </section>
+
+    <section id="ejemplos">
+      <h2>9. Ejemplos de uso</h2>
+      <h3>Historial con seguridad de bajas</h3>
+      <pre>historial = HistorialSQLite(ruta_db, sector=<span class="k">"empleo"</span>,
+    campos_snapshot=[(<span class="k">"titulo"</span>,<span class="k">"TEXT"</span>),(<span class="k">"salario"</span>,<span class="k">"REAL"</span>)],
+    dias_vejez=30)                 <span class="c"># portal siempre parcial</span>
+df, stats = historial.registrar_corrida(df, portal=<span class="k">"computrabajo"</span>,
+    listado_completo=<span class="k">False</span>)  <span class="c"># truncado: no marca ausencias</span></pre>
+      <h3>Extraer una tabla de PDF (con o sin bordes)</h3>
+      <pre><span class="k">from</span> core.ingesta <span class="k">import</span> extraer_tablas_pdf
+
+tablas = extraer_tablas_pdf(<span class="k">"boletin.pdf"</span>, estrategia=<span class="k">"auto"</span>)
+<span class="k">for</span> t <span class="k">in</span> tablas:
+    print(t.pagina, t.metodo, t.n_filas, t.n_columnas)
+    <span class="k">for</span> fila <span class="k">in</span> t.filas:   <span class="c"># fila = list[str]</span>
+        ...</pre>
+      <h3>Compuerta de poda en un proyecto standalone</h3>
+      <pre><span class="c"># lista módulos copiados que nadie importa (código muerto)</span>
+python -m core.poda mi_proyecto/comun</pre>
+    </section>
+  </main>
+</div>
+
+<footer>
+  bcrp-scraping · metodología de scraping del Departamento de Estudios Económicos, BCRP Arequipa.
+  Documento vivo: la fuente de verdad es <code>AGENTS.md</code> + <code>core/</code> + las guías de <code>docs/</code>.
+</footer>
+</body>
+</html>

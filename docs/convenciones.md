@@ -9,10 +9,11 @@
 
 ## Estructura de módulos
 
-- Un patrón sube a `core/` **sólo cuando aparece en al menos 2 sectores** (YAGNI).
-- Cada sector en `sectores/<sector>/` importa de `core/`, **nunca al revés**.
+- Un patrón sube a `core/` **sólo cuando aparece en al menos 2 proyectos/sectores** (YAGNI).
+- Cada proyecto (`<mi_proyecto>/`, copia de `plantilla_proyecto/`) importa de
+  `core/`, **nunca al revés**.
 - `__init__.py` de cada paquete expone API pública con `__all__`.
-- Los helpers sector-específicos viven en el sector. No "preventivamente" en core.
+- Los helpers específicos del proyecto viven en el proyecto. No "preventivamente" en core.
 
 ## Fallback en cascada
 
@@ -75,7 +76,7 @@ materializar columnas de periodo derivadas de `fecha_publicacion`:
 - **Sin llamadas a red** en tests. Fixtures HTML/JSON grabadas en `tests/fixtures/`.
 - Mocks para DeepSeek (`monkeypatch openai.OpenAI`) y Selenium driver.
 - Cobertura objetivo: ≥ 70% en `core/`.
-- Tests por sector en `tests/sectores/<sector>/`.
+- Tests del núcleo en `tests/core/`. Cada proyecto lleva sus propios tests.
 
 ## Secretos
 

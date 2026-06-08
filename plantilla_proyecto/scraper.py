@@ -28,7 +28,7 @@ def scrape_portal_con_diagnostico(
     headless: bool = False,
 ) -> tuple[list[dict], dict]:
     """Punto de entrada. Devuelve (resultados, diagnostico)."""
-    from sectores._template import config  # TODO: reemplazar al copiar
+    from . import config
 
     browser = BrowserManager(
         headless=headless,
@@ -40,7 +40,7 @@ def scrape_portal_con_diagnostico(
 
     try:
         if portal == "portal_a":
-            from sectores._template.portal_scrapers.portal_a import scrape_listados_portal_a  # TODO renombrar
+            from .portal_scrapers.portal_a import scrape_listados_portal_a  # TODO renombrar
             diagnostico = nuevo_diagnostico_scraping(portal, operacion, "<estrategia>")
             resultados = scrape_listados_portal_a(
                 browser, operacion, num_paginas, diagnostico=diagnostico

@@ -38,15 +38,15 @@ Antes de cualquier código, completá la **compuerta de intake** de
 ## Paso 1 — Scaffold
 
 ```bash
-cp -r sectores/_template sectores/<mi_sector>
+cp -r plantilla_proyecto <mi_proyecto>
 ```
 
 Y en el directorio nuevo:
 
-- [ ] Reemplazar `<MI_SECTOR>` por el nombre real en `config.py`.
-- [ ] Renombrar `AnuncioMiSector` en `modelos.py`.
-- [ ] Reemplazar `from sectores._template import config` en `main.py`
-      por `from sectores.<mi_sector> import config`.
+- [ ] Reemplazar `<MI_PROYECTO>` por el nombre real en `config.py`.
+- [ ] Renombrar `AnuncioMiProyecto` en `modelos.py`.
+- [ ] Los imports internos son **relativos** (`from . import config`), así que
+      al renombrar el paquete no hay imports que editar. Sólo ajustá los `# TODO`.
 
 ## Paso 2 — Configuración
 
@@ -268,7 +268,7 @@ aplicar_formato_hojas(
 
 ## Paso 10 — Tests
 
-En `tests/sectores/<mi_sector>/`:
+En `<mi_proyecto>/tests/` (o `tests/` del repo del proyecto):
 
 - [ ] Fixtures HTML grabadas en `tests/fixtures/<portal>/` (sin red).
 - [ ] Tests del parser de cada portal usando esas fixtures.
@@ -280,16 +280,16 @@ En `tests/sectores/<mi_sector>/`:
 
 ```bash
 # Test
-python -m pytest tests/sectores/<mi_sector>/ -v
+python -m pytest tests/ -v
 
 # Corrida real, con pocas páginas y sin IA primero
-python -m sectores.<mi_sector>.main --portal <portal_a> --paginas 1 --sin-ia
+python -m mi_proyecto.main --portal <portal_a> --paginas 1 --sin-ia
 
 # Si pasa: agregar IA
-python -m sectores.<mi_sector>.main --portal <portal_a> --paginas 1
+python -m mi_proyecto.main --portal <portal_a> --paginas 1
 
 # Si pasa: todos los portales
-python -m sectores.<mi_sector>.main --paginas 5
+python -m mi_proyecto.main --paginas 5
 ```
 
 ## Cuándo subir algo a `core/`

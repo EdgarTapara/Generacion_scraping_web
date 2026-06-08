@@ -5,11 +5,9 @@
 ## Corrida normal
 
 ```bash
-# Inmobiliario (ejemplo de referencia — para producción real usar v1/)
-python -m sectores.inmobiliario.main --portal urbania --operacion alquiler --paginas 5
-
-# Sector nuevo
-python -m sectores.<mi_sector>.main --portal <portal> --paginas 5
+# Un scraper construido a partir de plantilla_proyecto/
+python -m mi_proyecto.main --portal <portal> --operacion <op> --paginas 5
+python -m mi_proyecto.main --portal <portal> --paginas 5
 ```
 
 ## Salud del proyecto
@@ -74,7 +72,7 @@ Resultado auditado el 2026-05-30: `110 passed`.
    sigue existiendo.
 3. Si el blob JSON cambió de estructura: actualizar
    `core.redux.extraer_redux_state` claves esperadas por el sector.
-4. Si los selectores DOM cambiaron: actualizar `sectores/<x>/portal_scrapers/<portal>.py`.
+4. Si los selectores DOM cambiaron: actualizar `<mi_proyecto>/portal_scrapers/<portal>.py`.
 5. Grabar fixture HTML nuevo en `tests/fixtures/<portal>/` para
    prevenir regresiones.
 
@@ -125,8 +123,8 @@ Resultado auditado el 2026-05-30: `110 passed`.
 
 Antes de aceptar el PR, verificar:
 
-- [ ] El sector no importa nada de otro sector (sólo de `core/`).
-- [ ] Hay tests sin red en `tests/sectores/<x>/`.
+- [ ] El proyecto no importa nada de otro proyecto (sólo de `core/`).
+- [ ] Hay tests sin red en `tests/` del proyecto.
 - [ ] El `main.py` respeta la compuerta de calidad (no manda degradadas
       al historial).
 - [ ] El `extractor_ia.py` usa `CachePublicaciones` (no llamadas directas

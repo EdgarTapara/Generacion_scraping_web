@@ -26,6 +26,13 @@ venv/
 **/logs/
 *.log
 
+# Docs generados (los .md de metodología SÍ se versionan; los artefactos no)
+docs/visuales/
+docs/_generado/
+docs/**/*.pdf
+docs/**/*.png
+docs/**/*.html
+
 # IDE
 .vscode/
 .idea/

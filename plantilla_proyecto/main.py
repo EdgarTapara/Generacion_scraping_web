@@ -11,8 +11,11 @@ Pipeline estándar (v1-validado):
     6. Excel acumulativo (Consolidado + Diagnostico).
     7. Formato visual + columnas estimadas en rojo (si aplica TC).
 
-Uso:
-    python -m sectores.<mi_sector>.main --portal portal_a --paginas 5 --sin-ia
+Uso (tras copiar esta carpeta a `<mi_proyecto>/` y renombrarla):
+    python -m mi_proyecto.main --portal portal_a --paginas 5 --sin-ia
+
+Los imports internos son **relativos** (`from . import ...`) a propósito:
+así, al copiar y renombrar el paquete, nada que editar para que enlace.
 """
 
 from __future__ import annotations
@@ -43,10 +46,10 @@ def ejecutar_scraping(
     headless: bool = False,
 ) -> dict:
     """Una corrida = un (portal, operación). Devuelve resumen."""
-    from sectores._template import config  # TODO: reemplazar al copiar
-    from sectores._template.scraper import scrape_portal_con_diagnostico  # noqa: F401
-    # from sectores._template.limpieza import pipeline_limpieza
-    # from sectores._template.extractor_ia import procesar_con_ia
+    from . import config
+    from .scraper import scrape_portal_con_diagnostico  # noqa: F401
+    # from .limpieza import pipeline_limpieza
+    # from .extractor_ia import procesar_con_ia
 
     diagnostico: dict = {}
     df = None
@@ -119,7 +122,7 @@ def ejecutar_scraping(
 
 
 def main() -> None:
-    from sectores._template import config  # TODO: reemplazar al copiar
+    from . import config
 
     configurar_logging(config.CARPETA_LOGS)
 

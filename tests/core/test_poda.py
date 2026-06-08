@@ -1,6 +1,6 @@
-"""Tests de la compuerta de poda (herramientas/verificar_poda.py)."""
+"""Tests de la compuerta de poda (core/poda.py)."""
 
-from herramientas.verificar_poda import modulos_huerfanos
+from core.poda import modulos_huerfanos
 
 
 def _crear_proyecto(tmp_path):

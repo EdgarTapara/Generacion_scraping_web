@@ -34,7 +34,7 @@ pdf = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["core*", "sectores*"]
+include = ["core*", "plantilla_proyecto*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

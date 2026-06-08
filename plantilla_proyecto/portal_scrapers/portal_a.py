@@ -56,7 +56,7 @@ def scrape_listados_portal_a(
 
     Patrón de referencia (de v1 inmobiliario, navent.py):
 
-        from sectores.<mi_sector> import config
+        from .. import config  # relativo: rename-proof al copiar el paquete
 
         if diagnostico is None:
             diagnostico = nuevo_diagnostico_scraping("portal_a", operacion, "navent")

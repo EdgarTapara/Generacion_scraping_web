@@ -4,6 +4,13 @@
 > scrapers usando este framework. Si eres una persona buscando entender
 > el proyecto, empezá por [`README.md`](README.md).
 
+> **Punto de partida obligatorio (cualquier agente: Claude, Codex,
+> Antigravity, Gemini…).** Ante CUALQUIER pedido de scraping del BCRP, lo
+> primero es leer este archivo y `core/` antes de escribir código. No se
+> arranca un scraper desde cero ni se reinventa un patrón que ya vive en
+> `core/`. Esta metodología es el contrato; el código nuevo se construye
+> copiando `plantilla_proyecto/` y reutilizando `core/`.
+
 ## Filosofía del proyecto
 
 `bcrp-scraping` es una librería de **metodologías**, no una colección de
@@ -63,10 +70,14 @@ en silencio.
 
 ```
 core/                ← reutilizable, sector-agnóstico. Se cambia con cuidado.
-sectores/<x>/        ← específico de cada dominio. Importa de core/.
-sectores/_template/  ← scaffold para arrancar un sector nuevo.
-sectores/inmobiliario/  ← ejemplo de referencia (NO producción — v1 sí lo es).
+plantilla_proyecto/  ← estructura ESTÁNDAR de un scraper nuevo (se copia).
 ```
+
+Este repo es **metodología pura**: `core/` (patrones reutilizables) +
+`plantilla_proyecto/` (el estándar de archivos que tiene cualquier scraper).
+No hay scrapers de producción adentro. Cada proyecto real (inmobiliario,
+empleo, diarios/PDF…) vive en su propia carpeta/repo, copia la plantilla y
+trae de `core/` SÓLO lo que importa (ver "Proyectos standalone" abajo).
 
 **Núcleo `core/` disponible** (ver docstrings de cada `__init__.py`
 para la API exacta):
@@ -75,7 +86,7 @@ para la API exacta):
 |---|---|
 | `core.http` | **HTTP-first**: `HttpClient` (`requests` + retries + throttle + `connect_timeout` para fail-fast en hosts bloqueados) y `detectar_bloqueo_anti_bot(status, texto)`. Primera opción para portales con HTML server-side / JSON / XHR. Empezar liviano; escalar a `core.browser` sólo cuando la detección anti-bot dispara |
 | `core.browser` | `BrowserManager` con undetected-chromedriver, monkeypatch __del__, delays aleatorios anti-bot, cierre de cookies, override `CHROME_VERSION_MAIN`. **No es el default**: usar sólo si el portal exige navegador real (SPA dependiente de JS o bloqueo anti-bot confirmado) |
-| `core.ingesta` | Ingesta documental: PDF por columnas (`leer_pdf_columnas`) y segmentación por código/sección para diarios, boletines o clasificados impresos |
+| `core.ingesta` | Ingesta documental: PDF por columnas (`leer_pdf_columnas`), **extracción de tablas** (`extraer_tablas_pdf`: lattice con bordes + stream por geometría de palabras para tablas sin bordes) y segmentación por código/sección para diarios, boletines o clasificados impresos. La geometría (`reconstruir_tabla`) es pura y testeable sin PDF |
 | `core.redux` | Parser de `__NEXT_DATA__` y búsqueda recursiva por clave. Para SPAs Next.js / portales hidratados (Navent, etc.) |
 | `core.limpieza` | Helpers puros: `parsear_numero`, `parsear_entero`, `moneda_a_iso`, `limpiar_precio_pe`, `limpiar_fecha_relativa`. Periodos: `derivar_periodo` y `agregar_columnas_periodo(df, "fecha_publicacion")` → columnas `anio`/`trimestre` (`YYYY-T{1..4}`)/`mes` (`YYYY-MM`) para agregación BCRP |
 | `core.modelos` | `AnuncioBase` Pydantic + `EstadoAnuncio` + `RefAnuncio` (referencia ligera del listado). Cada sector hereda |
@@ -98,12 +109,12 @@ para la API exacta):
    se exponen como parámetros con defaults.
 3. Tiene **tests unitarios** sin red ni Chrome (fixtures locales).
 4. No depende de otro módulo de `core/` por circularidad. La dirección
-   es siempre `core/utils` → `core/<otros>` → `sectores/<x>`.
+   es siempre `core/utils` → `core/<otros>` → `<mi_proyecto>`.
 
 ## Reglas que NO se rompen nunca
 
-- **Nunca importar de `sectores/` desde `core/`.** La dirección es de
-  un solo sentido.
+- **Nunca importar del paquete del proyecto desde `core/`.** La dirección
+  es de un solo sentido: el proyecto importa `core/`, nunca al revés.
 - **Nunca usar Selenium o llamadas a red en tests.** Hay fixtures HTML
   y mocks para eso.
 - **Nunca commitear `.env`** o claves API. `.env.example` con placeholders.
@@ -145,7 +156,7 @@ para la API exacta):
   fuentes (`core.calidad.detectar_duplicados`) sólo SEÑALA candidatos para
   que un humano decida. Pintar/agrupar, sí; eliminar filas por similitud sin
   revisión, jamás.
-- **`scraper.py` del sector es fachada delgada.** Sólo rutea al
+- **`scraper.py` del proyecto es fachada delgada.** Sólo rutea al
   módulo correspondiente en `portal_scrapers/<portal>.py`. Cualquier
   lógica de parseo va en el módulo del portal, NO en la fachada. Los
   tests parchean el módulo real, no la fachada.
@@ -164,42 +175,40 @@ para la API exacta):
   SPA que depende de JS o si `detectar_bloqueo_anti_bot` confirma un
   desafío. Un Chrome por anuncio es el antipatrón más caro del proyecto.
 
-## Cómo construir un sector nuevo
+## Cómo construir un proyecto nuevo
 
-Receta corta:
+Receta corta — copiá la plantilla estándar y renombrala:
 
 ```bash
-cp -r sectores/_template sectores/<mi_sector>
+cp -r plantilla_proyecto <mi_proyecto>
 ```
 
 Luego seguir [`docs/agregar_nuevo_sector.md`](docs/agregar_nuevo_sector.md)
-paso a paso. El template ya tiene:
+paso a paso. La plantilla ya tiene (imports internos **relativos**, así que
+renombrar el paquete no rompe nada):
 
 - `config.py` con slots para URLs, delays, umbrales, paths.
-- `modelos.py` con un `AnuncioMiSector(AnuncioBase)` listo para extender.
-- `scraper.py` + `portales/portal_a.py` con el patrón Redux→DOM→regex.
+- `modelos.py` con un `AnuncioMiProyecto(AnuncioBase)` listo para extender.
+- `scraper.py` + `portal_scrapers/portal_a.py` con el patrón Redux→DOM→regex.
 - `limpieza.py` con el pipeline-shape.
 - `extractor_ia.py` con cache + DeepSeek ya cableado.
 - `main.py` con la orquestación de fases y CLI argparse.
 
 Cada archivo tiene `# TODO:` con anclas concretas — no hay que descubrir
-las dependencias a fuerza de `grep`. El template es un **scaffold guiado**:
+las dependencias a fuerza de `grep`. La plantilla es un **scaffold guiado**:
 no es producción hasta que el agente complete los TODOs, defina umbrales,
-agregue fixtures y corra tests del sector.
+agregue fixtures y corra tests. Ese conjunto de archivos es **el estándar**:
+todo scraper nuevo se ve igual, sin importar el sector.
 
 ## Proyectos standalone: cómo consumir la metodología sin copias muertas
 
-Hay dos formas de usar esta metodología:
+Un proyecto real vive en su propia carpeta/repo y **no puede importar `core/`
+por path**. El riesgo es copiar `core/` entero y terminar con módulos que
+nadie usa, ensuciando el árbol y confundiendo a quien revisa archivo por
+archivo (problema real observado en empleo: se copió `comun/modelos` y otros
+sin importadores).
 
-1. **Sector dentro de este repo** (`sectores/<x>/`): importa directo de
-   `core/`. **Cero copias.** Es el caso ideal.
-2. **Proyecto standalone** (repo/carpeta aparte, como el scraper de empleo):
-   no puede importar `core/` por path. Acá el riesgo es copiar `core/`
-   entero y terminar con módulos que nadie usa, ensuciando el árbol y
-   confundiendo a quien revisa archivo por archivo (problema real observado
-   en empleo: se copió `comun/modelos`, `comun/...` sin importadores).
-
-**Para proyectos standalone — generación selectiva + poda (obligatorio):**
+**Generación selectiva + poda (obligatorio):**
 
 - **Generá sólo lo que el proyecto importa.** No copies `core/` completo.
   Si el proyecto sólo hace HTTP y limpieza, su paquete compartido (p. ej.
@@ -211,9 +220,9 @@ Hay dos formas de usar esta metodología:
   hace **visible la desincronización** (que es manual y por diseño) y
   permite re-sincronizar un módulo puntual sin adivinar de dónde salió.
 - **Corré la compuerta de poda antes de cerrar.** Todo módulo del paquete
-  compartido con **0 importadores** se borra. Herramienta reusable:
-  `python herramientas/verificar_poda.py <ruta_paquete>` (lista módulos sin
-  importadores). No cierres una tarea con código muerto adentro.
+  compartido con **0 importadores** se borra. Herramienta reusable en `core/`:
+  `python -m core.poda <ruta_paquete>` (lista módulos sin importadores). No
+  cierres una tarea con código muerto adentro.
 
 Detalle completo y ejemplos en
 [`docs/distribucion_proyecto_nuevo.md`](docs/distribucion_proyecto_nuevo.md).

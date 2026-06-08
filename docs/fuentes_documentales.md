@@ -34,6 +34,44 @@ round(x0 / ancho_columna), y0
 Esto preserva columnas mejor que una extraccion lineal. La dependencia
 `pymupdf` es opcional; instalar con el extra `pdf` o con `pip install pymupdf`.
 
+## PDF con tablas (cuadros estadisticos)
+
+Para PDFs con tablas — cuadros de cifras, anexos, boletines — usar
+`core.ingesta.extraer_tablas_pdf`. La extraccion lineal de texto destruye las
+tablas: pega columnas, parte celdas multilinea y mezcla filas.
+
+Dos estrategias, combinables con `estrategia="auto"`:
+
+- **Lattice**: cuando la tabla tiene lineas de grilla, PyMuPDF `find_tables()`
+  las aprovecha. Es lo que `auto` intenta primero.
+- **Stream**: el caso DIFICIL — tablas sin bordes que separan columnas solo con
+  espacios en blanco. Se reconstruye desde la geometria de cada palabra:
+  agrupar por `y` en filas y cortar columnas en las bandas de blanco que se
+  repiten entre filas. `auto` cae a esto cuando no hay grilla.
+
+```python
+from core.ingesta import extraer_tablas_pdf
+
+tablas = extraer_tablas_pdf("boletin.pdf", estrategia="auto")
+for t in tablas:
+    print(t.pagina, t.metodo, t.n_filas, t.n_columnas)
+    for fila in t.filas:   # fila = list[str], celdas normalizadas
+        ...
+```
+
+El algoritmo de geometria es **puro y testeable sin PDF**: `reconstruir_tabla`,
+`agrupar_en_filas` y `detectar_cortes_columnas` operan sobre cajas de palabras
+`(x0, y0, x1, y1, texto)`, asi que se prueban con cajas sinteticas (sin red ni
+pymupdf). Parametros a calibrar por fuente:
+
+- `tol_y`: tolerancia vertical para que dos palabras sean la misma fila (menor
+  al interlineado; ~3 pt para cuerpos 8-11 pt).
+- `min_brecha_columna`: ancho minimo de blanco para considerar un corte de
+  columna. Subirlo si une columnas; bajarlo si parte una columna en dos.
+
+Si una fuente tiene un layout fijo conocido, pasar `cortes=[x1, x2, ...]`
+explicitos evita la inferencia y es 100% determinista.
+
 ## Segmentacion
 
 Usar `core.ingesta.segmentar_documento` cuando cada aviso termina con un codigo

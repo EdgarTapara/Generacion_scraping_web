@@ -11,49 +11,60 @@ de Estudios Económicos — BCRP Arequipa.
 La brújula correcta es esta: el proyecto busca convertir el aprendizaje de
 inmobiliaria, empleo, diarios/PDF y APIs BCRP en una metodología reutilizable
 para agentes IA. El código importa, pero el contrato principal está en
-`AGENTS.md`, `core/`, `sectores/_template/` y las guías de `docs/`.
+`AGENTS.md`, `core/`, `plantilla_proyecto/` y las guías de `docs/`.
+
+> Este repo es **metodología pura**: no contiene scrapers de producción. Es
+> `core/` (patrones reutilizables) + `plantilla_proyecto/` (la estructura
+> estándar de archivos). Cada scraper real vive en su propia carpeta/repo.
 
 ## Filosofía en 3 líneas
 
-1. **Lo que es reusable entre sectores vive en `core/`**: anti-bot,
-   cookies, ingesta documental, parser Redux, historial SQLite, cache IA, tipo de cambio
-   BCRP, NSE, control de calidad, formato auditable Excel.
-2. **Lo que es sector-específico vive en `sectores/<x>/`** y consume `core/`.
-3. **Para construir un sector nuevo** se copia `sectores/_template/` y
-   se sigue [`docs/agregar_nuevo_sector.md`](docs/agregar_nuevo_sector.md).
+1. **Lo que es reusable entre proyectos vive en `core/`**: anti-bot,
+   cookies, ingesta documental (PDF por columnas y por tablas), parser Redux,
+   historial SQLite, cache IA, tipo de cambio BCRP, NSE, control de calidad,
+   formato auditable Excel, compuerta de poda.
+2. **Lo específico de cada scraper vive en su propio paquete** (`<mi_proyecto>/`,
+   estandarizado por `plantilla_proyecto/`) y consume `core/`.
+3. **Para construir un scraper nuevo** se copia `plantilla_proyecto/` y se
+   sigue [`docs/agregar_nuevo_sector.md`](docs/agregar_nuevo_sector.md).
 
 ## Estructura
 
 ```
 bcrp-scraping/
-├── AGENTS.md              ← instrucciones para agentes IA
+├── AGENTS.md              ← instrucciones para agentes IA (contrato)
 ├── README.md              ← (este archivo)
+├── guia.html              ← guía visual autocontenida del proyecto
 ├── pyproject.toml
-├── core/                  ← núcleo reutilizable
+├── core/                  ← núcleo reutilizable (metodología)
 │   ├── utils/             normalizar_enlace, hashes, publicacion_id
-│   ├── ingesta/           PDF por columnas + segmentacion documental
+│   ├── http/              HTTP-first: HttpClient + detección anti-bot
+│   ├── ingesta/           PDF por columnas + tablas + segmentacion documental
 │   ├── redux/             parser __NEXT_DATA__ + búsqueda recursiva
 │   ├── browser/           BrowserManager (undetected-chromedriver, anti-bot)
 │   ├── limpieza/          parsear_numero, moneda_a_iso, limpiar_precio_pe, fechas_es
-│   ├── modelos/           AnuncioBase Pydantic + EstadoAnuncio
+│   ├── modelos/           AnuncioBase Pydantic + EstadoAnuncio + RefAnuncio
+│   ├── contratos.py       PortalScraper (Protocol) + ClientePreferido
 │   ├── extractor_ia/      DeepSeekExtractor + CachePublicaciones SQLite
 │   ├── historial/         HistorialSQLite multi-sector con ciclo de vida
-│   ├── calidad/           Compuerta pre-IA (umbrales + señales)
+│   ├── calidad/           Compuerta pre-IA + duplicados (señal)
+│   ├── mantenimiento_frontend/  reporte auditable + clasificación de fallo
+│   ├── snapshots/         captura HTML por etapa
 │   ├── tipo_cambio/       BCRP DataAPI + cache + conversión auditable
 │   ├── nse/               Clasificador NSE por lookup (sin ML)
 │   ├── reportes/          Excel acumulativo + formato visual
+│   ├── poda.py            compuerta: módulos sin importadores
 │   └── logging/           Logging por corrida
-├── sectores/
-│   ├── _template/         scaffold para sectores nuevos
-│   └── inmobiliario/      ejemplo de referencia (NO producción)
+├── plantilla_proyecto/    ← estructura ESTÁNDAR de un scraper nuevo (se copia)
 ├── docs/
 │   ├── arquitectura.md    capas, módulos, flujo
 │   ├── convenciones.md    idioma, estilo, errores
-│   ├── agregar_nuevo_sector.md   checklist 10 pasos
+│   ├── agregar_nuevo_sector.md   checklist paso a paso
+│   ├── distribucion_proyecto_nuevo.md  generación selectiva + poda
+│   ├── fuentes_documentales.md   metodología PDF/diarios
 │   └── runbook_operacion.md      troubleshooting
 └── tests/
-    ├── core/              tests del núcleo (sin red)
-    └── sectores/          tests por sector con fixtures
+    └── core/              tests del núcleo (sin red ni Chrome)
 ```
 
 ## Metodologías que aporta cada módulo de `core/`
@@ -85,21 +96,20 @@ y segmentacion por codigo/seccion. Ver `docs/fuentes_documentales.md`.
 - **Conversiones de TC son auditables, no destructivas.** Columnas en
   rojo (#C00000) declaran lo imputado.
 - **NSE es lookup, no ML.** Mientras la base esté desbalanceada.
-- **`core/` jamás importa de `sectores/`.** Dirección de dependencia
-  estricta de un solo sentido.
+- **`core/` jamás importa del paquete del proyecto.** Dirección de
+  dependencia estricta de un solo sentido.
 
-## Corrida (ejemplo de referencia)
+## Arrancar un scraper nuevo
 
 ```bash
-# El v1 productivo vive aparte. Acá sólo el ejemplo cableado:
-python -m sectores.inmobiliario.main --portal urbania --paginas 5 --sin-ia
+cp -r plantilla_proyecto mi_proyecto
+# editar mi_proyecto/config.py, modelos.py, portal_scrapers/...
+python -m mi_proyecto.main --portal portal_a --paginas 5 --sin-ia
 ```
 
-Para producción real del scraping inmobiliario usar:
-
-```
-../../INMOBILIARIA/PROYECTO DE SCRAPING NUEVA METODOLOGIA/v1/
-```
+Los proyectos productivos (inmobiliario, empleo, diarios/PDF) viven en sus
+propias carpetas y traen de `core/` sólo lo que importan — ver
+[`docs/distribucion_proyecto_nuevo.md`](docs/distribucion_proyecto_nuevo.md).
 
 ## Tests
 
@@ -141,8 +151,12 @@ Requisitos:
 ## Para agentes IA
 
 Ver [`AGENTS.md`](AGENTS.md). En particular:
-- Convención de capas (`core/` ↔ `sectores/<x>/`).
+- Convención de capas (`core/` ↔ `<mi_proyecto>/`).
 - Cuándo subir un patrón a `core/`.
-- Cómo construir un sector nuevo en 10 pasos.
+- Cómo construir un scraper nuevo copiando `plantilla_proyecto/`.
 - Cómo adaptar fuentes PDF/diarios con `docs/fuentes_documentales.md`.
-- Anti-patrones (importar de sectores en core, llamar a red en tests, etc.).
+- Anti-patrones (importar del proyecto en core, llamar a red en tests, etc.).
+
+El repo incluye una **skill** (`.claude/skills/bcrp-scraping/`) que activa este
+contrato automáticamente en Claude Code ante cualquier tarea de scraping. Otros
+agentes (Codex, Antigravity, Gemini) leen el mismo contrato desde `AGENTS.md`.
