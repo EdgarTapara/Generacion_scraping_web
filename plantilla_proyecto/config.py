@@ -132,11 +132,21 @@ CARPETA_LOGS = CARPETA_SALIDA / "logs"
 CARPETA_SNAPSHOTS_FRONTEND = CARPETA_SALIDA / "snapshots_frontend"
 CARPETA_REPORTES_MANTENIMIENTO = CARPETA_SALIDA / "reportes_mantenimiento_frontend"
 
-for carpeta in (
+CARPETAS_SALIDA = (
     CARPETA_SALIDA, CARPETA_DEGRADADOS, CARPETA_LOGS,
     CARPETA_SNAPSHOTS_FRONTEND, CARPETA_REPORTES_MANTENIMIENTO,
-):
-    carpeta.mkdir(parents=True, exist_ok=True)
+)
+
+
+def asegurar_directorios() -> None:
+    """Crea las carpetas de salida. La llama `main()` al arrancar una corrida.
+
+    NO se hace al importar el módulo a propósito: importar `config` no debe
+    tener efectos secundarios en el filesystem (así el paquete se puede
+    importar desde tests o tooling sin ensuciar el árbol del proyecto).
+    """
+    for carpeta in CARPETAS_SALIDA:
+        carpeta.mkdir(parents=True, exist_ok=True)
 
 
 # Mapa portal → archivos/funciones donde un humano o IA debe buscar la

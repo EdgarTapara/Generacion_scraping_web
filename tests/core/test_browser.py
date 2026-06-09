@@ -4,9 +4,8 @@ Tests de core/browser/. Sin llamadas a red: se mockea undetected-chromedriver.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
-from core.browser import BrowserManager, buscar_texto, buscar_texto_rapido
+from core.browser import BrowserManager, buscar_texto_rapido
 
 
 @patch("core.browser.manager.uc.Chrome")

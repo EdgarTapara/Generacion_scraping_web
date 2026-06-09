@@ -6,7 +6,6 @@ la decide el caller (cada sector apunta a su propia `resultados/logs/`).
 """
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 

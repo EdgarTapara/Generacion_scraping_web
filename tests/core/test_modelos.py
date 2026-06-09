@@ -53,7 +53,6 @@ def test_ausencias_no_puede_ser_negativo():
 
 def test_anuncio_base_extensible():
     """Cada sector puede extender AnuncioBase con campos propios."""
-    from pydantic import BaseModel
     from typing import Optional
 
     class AnuncioEmpleoTest(AnuncioBase):

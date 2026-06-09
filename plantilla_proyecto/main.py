@@ -124,6 +124,7 @@ def ejecutar_scraping(
 def main() -> None:
     from . import config
 
+    config.asegurar_directorios()  # crea resultados/ recién al arrancar la corrida
     configurar_logging(config.CARPETA_LOGS)
 
     parser = argparse.ArgumentParser(description=f"Scraping {config.SECTOR} BCRP")

@@ -130,9 +130,9 @@ propias carpetas y traen de `core/` sólo lo que importan — ver
 PYTHONPATH='.codex-pydeps;.' python -m pytest tests -q
 ```
 
-Resultado auditado el 2026-06-08: `104 passed`. Sin llamadas a red ni Chrome
-real — todo con fixtures/mocks. Si no usas `.codex-pydeps`, instala el paquete
-con extras de desarrollo antes de correr tests.
+Resultado auditado el 2026-06-09: `114 passed` + `ruff check` limpio. Sin
+llamadas a red ni Chrome real — todo con fixtures/mocks. Si no usas
+`.codex-pydeps`, instala el paquete con extras de desarrollo antes de correr tests.
 
 ## Setup
 
