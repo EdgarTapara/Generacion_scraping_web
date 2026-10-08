@@ -1,7 +1,6 @@
 # bcrp-scraping
 
-Librería de **metodologías** de scraping reutilizables del Departamento
-de Estudios Económicos — BCRP Arequipa.
+Librería de **metodologías** de scraping reutilizables.
 
 > **No es una colección de scrapers.** Es el núcleo de patrones y
 > herramientas que cada scraper nuevo (empleo, financiero, comercio…)
