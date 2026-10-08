@@ -1,4 +1,4 @@
-# bcrp-scraping
+# Scraping
 
 Librería de **metodologías** de scraping reutilizables.
 
